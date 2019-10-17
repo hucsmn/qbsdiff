@@ -1,6 +1,7 @@
 use super::Control;
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
+use byteorder::{ByteOrder, LE};
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 16384;
@@ -169,6 +170,13 @@ where
         bsize: usize,
         dsize: usize,
     ) -> Self {
+        let mut buf = Vec::with_capacity(bsize);
+        let mut dlt = Vec::with_capacity(dsize);
+        unsafe {
+            buf.set_len(bsize);
+            dlt.set_len(dsize);
+        }
+
         Context {
             source: Cursor::new(source),
             target,
@@ -176,8 +184,8 @@ where
             delta,
             extra,
             n: 0,
-            buf: vec![0; bsize],
-            dlt: vec![0; dsize],
+            buf,
+            dlt,
             ctl: [0; 24],
             total: 0,
         }
@@ -202,6 +210,7 @@ where
         Ok(self.total)
     }
 
+    /// Reads the next control.
     fn next(&mut self) -> Option<Result<Control>> {
         match read_exact_or_eof(&mut self.ctrls, &mut self.ctl[..]) {
             Ok(0) => return None,
@@ -215,6 +224,7 @@ where
         Some(Ok(Control { add, copy, seek }))
     }
 
+    /// Adds delta to source and writes into the target.
     fn add(&mut self, mut count: u64) -> Result<()> {
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
@@ -237,6 +247,7 @@ where
         Ok(())
     }
 
+    /// Copies extra data to the target.
     fn copy(&mut self, mut count: u64) -> Result<()> {
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
@@ -253,40 +264,37 @@ where
         Ok(())
     }
 
+    /// Sets source cursor.
     fn seek(&mut self, offset: i64) -> Result<()> {
         self.source.seek(SeekFrom::Current(offset))?;
         Ok(())
     }
 
+    /// Extend the delta cache if not large enough.
     fn reserve_delta(&mut self, size: usize) {
         if size > self.dlt.len() {
             let n = size - self.dlt.len();
             self.dlt.reserve(n);
-            for _ in 0..n {
-                self.dlt.push(0);
+            unsafe {
+                self.dlt.set_len(size);
             }
         }
     }
 }
 
+/// Decodes integer.
 #[inline]
 fn decode_int(b: &[u8]) -> i64 {
-    let y = i64::from(b[0])
-        | i64::from(b[1]) << 8
-        | i64::from(b[2]) << 16
-        | i64::from(b[3]) << 24
-        | i64::from(b[4]) << 32
-        | i64::from(b[5]) << 40
-        | i64::from(b[6]) << 48
-        | i64::from(b[7]) & 0x7f << 56;
-
-    if b[7] & 0x80 == 0 {
-        y
+    let x = LE::read_u64(b);
+    if x >> 63 == 0 || x == 0x8000000000000000 {
+        x as i64
     } else {
-        -y
+        ((x & 0x7fffffffffffffff) as i64).wrapping_neg()
     }
 }
 
+// Reads exact buf.len() bytes or reads an EOF, returns size of data readed.
+#[inline]
 fn read_exact_or_eof<R>(r: &mut R, buf: &mut [u8]) -> Result<usize>
 where
     R: Read,

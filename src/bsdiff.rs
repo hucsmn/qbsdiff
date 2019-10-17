@@ -5,6 +5,7 @@ use bzip2::write::BzEncoder;
 use std::io::{BufWriter, Cursor, Error, ErrorKind, Result, Write};
 use std::ops::Range;
 use suffix_array::SuffixArray;
+use byteorder::{ByteOrder, LE};
 
 /// Compression level of the bzip2 compressor.
 pub use bzip2::Compression;
@@ -144,7 +145,10 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
             let mut spos = 0;
             let mut tpos = 0;
             let mut ctl = [0; 24];
-            let mut dlt = vec![0; bsize];
+            let mut dlt = Vec::with_capacity(bsize);
+            unsafe {
+                dlt.set_len(bsize);
+            }
             for c in self {
                 // Write control data.
                 encode_int(c.add as i64, &mut ctl[0..8]);
@@ -300,41 +304,24 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
     }
 }
 
-/// Encode integer.
+/// Encodes integer.
 #[inline]
 fn encode_int(x: i64, b: &mut [u8]) {
-    let mut y = if x < 0 { -x } else { x } as u64;
-
-    b[0] = y as u8;
-    y >>= 8;
-    b[1] = y as u8;
-    y >>= 8;
-    b[2] = y as u8;
-    y >>= 8;
-    b[3] = y as u8;
-    y >>= 8;
-    b[4] = y as u8;
-    y >>= 8;
-    b[5] = y as u8;
-    y >>= 8;
-    b[6] = y as u8;
-    y >>= 8;
-    b[7] = y as u8;
-    y >>= 8;
-
     if x < 0 {
-        b[7] |= 0x80;
+        LE::write_u64(b, x.wrapping_neg() as u64 | 0x8000000000000000);
+    } else {
+        LE::write_u64(b, x as u64);
     }
 }
 
-/// Convert Range<usize> to extent (i, n).
+/// Converts Range<usize> to extent (i, n).
 #[inline]
 fn range_to_extent(range: Range<usize>) -> (usize, usize) {
     let Range { start, end } = range;
     (start, end.saturating_sub(start))
 }
 
-/// Scan for the data length of the max simailarity.
+/// Scans for the data length of the max simailarity.
 #[inline]
 fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
     let mut i = 0;
@@ -354,7 +341,7 @@ fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
     i
 }
 
-/// Scan for the dividing point of the overlapping.
+/// Scans for the dividing point of the overlapping.
 #[inline]
 fn scan_divide<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I, zs: I) -> usize {
     let mut i = 0;
