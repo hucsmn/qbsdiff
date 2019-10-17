@@ -29,8 +29,8 @@ pub const LEVEL: Compression = Compression::Default;
 /// Compares source with target and generates patch using the best compression
 /// level:
 /// ```
-/// use qbsdiff::{Bsdiff, Compression};
 /// use std::io;
+/// use qbsdiff::{Bsdiff, Compression};
 /// 
 /// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut patch = Vec::new();

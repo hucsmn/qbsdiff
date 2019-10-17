@@ -12,8 +12,8 @@ pub const DELTA_MIN: usize = 1024;
 /// 
 /// Apply patch to source using a 4k buffer:
 /// ```
-/// use qbsdiff::Bspatch;
 /// use std::io;
+/// use qbsdiff::Bspatch;
 /// 
 /// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut target = Vec::new();
@@ -26,8 +26,8 @@ pub const DELTA_MIN: usize = 1024;
 /// 
 /// Preallocate target vector before applying patch:
 /// ```
-/// use qbsdiff::Bspatch;
 /// use std::io;
+/// use qbsdiff::Bspatch;
 /// 
 /// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
 ///     let patcher = Bspatch::new(patch)?;
