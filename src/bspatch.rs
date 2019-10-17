@@ -9,16 +9,19 @@ pub const BUFFER_SIZE: usize = 16384;
 pub const DELTA_MIN: usize = 1024;
 
 pub struct Bspatch<'p> {
-    ctrls: BzDecoder<&'p [u8]>,
-    delta: BzDecoder<&'p [u8]>,
-    extra: BzDecoder<&'p [u8]>,
+    ctrls: BzDecoder<Cursor<&'p [u8]>>,
+    delta: BzDecoder<Cursor<&'p [u8]>>,
+    extra: BzDecoder<Cursor<&'p [u8]>>,
     buffer_size: usize,
     delta_min: usize,
 }
 
 impl<'p> Bspatch<'p> {
     pub fn new(patch: &'p [u8]) -> Result<Self> {
-        let (ctrls, delta, extra) = parse(patch)?;
+        let (bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
+        let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
+        let delta = BzDecoder::new(Cursor::new(bz_delta));
+        let extra = BzDecoder::new(Cursor::new(bz_extra));
         Ok(Bspatch {
             ctrls,
             delta,
@@ -59,7 +62,7 @@ impl<'p> Bspatch<'p> {
 }
 
 /// Parse the bsdiff 4.x patch file.
-fn parse(patch: &[u8]) -> Result<(BzDecoder<&[u8]>, BzDecoder<&[u8]>, BzDecoder<&[u8]>)> {
+fn parse(patch: &[u8]) -> Result<(&[u8], &[u8], &[u8])> {
     if patch.len() < 32 || &patch[..8] != b"BSDIFF40" {
         return Err(Error::new(ErrorKind::InvalidData, "not a valid patch"));
     }
@@ -74,11 +77,7 @@ fn parse(patch: &[u8]) -> Result<(BzDecoder<&[u8]>, BzDecoder<&[u8]>, BzDecoder<
     let (bz_ctrls, remain) = remain.split_at(clen);
     let (bz_delta, bz_extra) = remain.split_at(dlen);
 
-    let ctrls = BzDecoder::new(bz_ctrls);
-    let delta = BzDecoder::new(bz_delta);
-    let extra = BzDecoder::new(bz_extra);
-
-    Ok((ctrls, delta, extra))
+    Ok((bz_ctrls, bz_delta, bz_extra))
 }
 
 /// Bspatch context.
