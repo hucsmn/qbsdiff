@@ -26,7 +26,7 @@ fn main() {
             "patch file"))
     .get_matches();
 
-    let bsize_expr = matches.value_of("BSIZE").unwrap_or("16384");
+    let bsize_expr = matches.value_of("BSIZE").unwrap_or("4096");
     let source_name = matches.value_of("SOURCE").unwrap();
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();

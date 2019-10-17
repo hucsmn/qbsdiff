@@ -16,7 +16,7 @@ pub use suffix_array::MAX_LENGTH;
 pub const DISMATCH_COUNT: usize = 8;
 
 /// Default buffer size for delta calculation.
-pub const BUFFER_SIZE: usize = 16384;
+pub const BUFFER_SIZE: usize = 4096;
 
 /// Default compression level.
 pub const LEVEL: Compression = Compression::Default;
