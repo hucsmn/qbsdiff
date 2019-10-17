@@ -8,6 +8,21 @@ pub const BUFFER_SIZE: usize = 16384;
 /// Default initial size of the delta calculation buffer.
 pub const DELTA_MIN: usize = 1024;
 
+/// Fast and memory saving patcher comaptible with bspatch.
+/// 
+/// Apply patch to source using a 4k buffer:
+/// ```
+/// use qbsdiff::Bspatch;
+/// use std::io;
+/// 
+/// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
+///     let mut target = Vec::new();
+///     Bspatch::new(patch)?
+///         .buffer_size(4096)
+///         .apply(source, io::Cursor::new(&mut target))?;
+///     Ok(target)
+/// }
+/// ```
 pub struct Bspatch<'p> {
     ctrls: BzDecoder<Cursor<&'p [u8]>>,
     delta: BzDecoder<Cursor<&'p [u8]>>,
@@ -17,6 +32,9 @@ pub struct Bspatch<'p> {
 }
 
 impl<'p> Bspatch<'p> {
+    /// Parses given bsdiff 4.x patch.
+    /// 
+    /// Returns error if parsing failed.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
         let (bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
         let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
@@ -31,6 +49,7 @@ impl<'p> Bspatch<'p> {
         })
     }
 
+    /// Sets the main copy buffer size, (`bs > 128`, default is `BUFFER_SIZE`).
     pub fn buffer_size(mut self, mut bs: usize) -> Self {
         if bs < 128 {
             bs = 128;
@@ -39,6 +58,12 @@ impl<'p> Bspatch<'p> {
         self
     }
 
+    /// Sets the initial delta cache size, (`dm > 128`, default is `DELTA_MIN`).
+    /// 
+    /// The delta cache is dynamic and can grow up when needed (but keeps not
+    /// greater than the size of main copy buffer).
+    /// 
+    /// This may be deprecated in later versions.
     pub fn delta_min(mut self, mut dm: usize) -> Self {
         if dm < 128 {
             dm = 128;
@@ -47,6 +72,9 @@ impl<'p> Bspatch<'p> {
         self
     }
 
+    /// Applies the patch to source data and outputs the target stream.
+    /// 
+    /// Returns count of bytes writed to target if no error encountered.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let ctx = Context::new(
             self.ctrls,

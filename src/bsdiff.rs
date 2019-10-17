@@ -21,9 +21,25 @@ pub const BUFFER_SIZE: usize = 16384;
 /// Default compression level.
 pub const LEVEL: Compression = Compression::Default;
 
-/// Memory-saving bsdiff 4.x compatible delta compressor for execuatbles.
+/// Fast and memory saving bsdiff 4.x compatible delta compressor for
+/// execuatbles.
 ///
 /// Source data size should not be greater than MAX_LENGTH (about 4 GiB).
+/// 
+/// Compares source with target and generates patch using the best compression
+/// level:
+/// ```
+/// use qbsdiff::{Bsdiff, Compression};
+/// use std::io;
+/// 
+/// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
+///     let mut patch = Vec::new();
+///     Bsdiff::new(source)
+///         .compression_level(Compression::Best)
+///         .compare(target, io::Cursor::new(&mut patch))?;
+///     Ok(patch)
+/// }
+/// ```
 pub struct Bsdiff<'s> {
     s: &'s [u8],
     sa: SuffixArray<'s>,
