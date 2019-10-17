@@ -1,0 +1,35 @@
+[package]
+name = "qbsdiff"
+version = "0.1.0"
+authors = ["hucsmn <hucsmn@hotmail.com>"]
+edition = "2018"
+description = "Fast and memory-saving reimplementation of bsdiff 4 utilities."
+
+[dependencies]
+bzip2 = "0.3"
+suffix_array = "0.4"
+clap = { optional = true, version = "2.33" }
+
+[dev-dependencies]
+globwalk = "0.7"
+subprocess = "0.1"
+rand = "0.7"
+chrono = "0.4"
+
+[features]
+default = []
+cmd = ["clap"]
+
+[[bin]]
+name = "qbsdiff"
+path = "cmd/qbsdiff.rs"
+required-features = ["cmd"]
+
+[[bin]]
+name = "qbspatch"
+path = "cmd/qbspatch.rs"
+required-features = ["cmd"]
+
+[[test]]
+name = "compat"
+path = "tests/compat.rs"
