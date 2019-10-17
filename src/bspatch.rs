@@ -23,10 +23,24 @@ pub const DELTA_MIN: usize = 1024;
 ///     Ok(target)
 /// }
 /// ```
+/// 
+/// Preallocate target vector before applying patch:
+/// ```
+/// use qbsdiff::Bspatch;
+/// use std::io;
+/// 
+/// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
+///     let patcher = Bspatch::new(patch)?;
+///     let mut target = Vec::with_capacity(patcher.hint_target_size() as usize);
+///     patcher.apply(source, io::Cursor::new(&mut target))?;
+///     Ok(target)
+/// }
+/// ```
 pub struct Bspatch<'p> {
     ctrls: BzDecoder<Cursor<&'p [u8]>>,
     delta: BzDecoder<Cursor<&'p [u8]>>,
     extra: BzDecoder<Cursor<&'p [u8]>>,
+    tsize: u64,
     buffer_size: usize,
     delta_min: usize,
 }
@@ -36,7 +50,7 @@ impl<'p> Bspatch<'p> {
     /// 
     /// Returns error if parsing failed.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
-        let (bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
+        let (tsize, bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
         let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
         let delta = BzDecoder::new(Cursor::new(bz_delta));
         let extra = BzDecoder::new(Cursor::new(bz_extra));
@@ -44,6 +58,7 @@ impl<'p> Bspatch<'p> {
             ctrls,
             delta,
             extra,
+            tsize,
             buffer_size: BUFFER_SIZE,
             delta_min: DELTA_MIN,
         })
@@ -72,6 +87,11 @@ impl<'p> Bspatch<'p> {
         self
     }
 
+    /// Hints the final target data size, as provided in the patch header.
+    pub fn hint_target_size(&self) -> u64 {
+        self.tsize
+    }
+
     /// Applies the patch to source data and outputs the target stream.
     /// 
     /// Returns count of bytes writed to target if no error encountered.
@@ -90,22 +110,23 @@ impl<'p> Bspatch<'p> {
 }
 
 /// Parse the bsdiff 4.x patch file.
-fn parse(patch: &[u8]) -> Result<(&[u8], &[u8], &[u8])> {
+fn parse(patch: &[u8]) -> Result<(u64, &[u8], &[u8], &[u8])> {
     if patch.len() < 32 || &patch[..8] != b"BSDIFF40" {
         return Err(Error::new(ErrorKind::InvalidData, "not a valid patch"));
     }
 
-    let clen = decode_int(&patch[8..16]) as usize;
-    let dlen = decode_int(&patch[16..24]) as usize;
-    if patch.len() < 32 + clen + dlen {
+    let csize = decode_int(&patch[8..16]) as u64;
+    let dsize = decode_int(&patch[16..24]) as u64;
+    let tsize = decode_int(&patch[24..32]) as u64;
+    if 32 + csize + dsize > patch.len() as u64 {
         return Err(Error::new(ErrorKind::InvalidData, "patch corrupted"));
     }
 
     let (_, remain) = patch.split_at(32);
-    let (bz_ctrls, remain) = remain.split_at(clen);
-    let (bz_delta, bz_extra) = remain.split_at(dlen);
+    let (bz_ctrls, remain) = remain.split_at(csize as usize);
+    let (bz_delta, bz_extra) = remain.split_at(dsize as usize);
 
-    Ok((bz_ctrls, bz_delta, bz_extra))
+    Ok((tsize, bz_ctrls, bz_delta, bz_extra))
 }
 
 /// Bspatch context.

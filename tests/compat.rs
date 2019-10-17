@@ -129,8 +129,9 @@ fn bspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 fn qbspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
-    let mut t = Vec::new();
-    Bspatch::new(p)?.apply(s, io::Cursor::new(&mut t))?;
+    let patcher = Bspatch::new(p)?;
+    let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
+    patcher.apply(s, io::Cursor::new(&mut t))?;
     Ok(t)
 }
 
