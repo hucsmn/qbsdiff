@@ -10,7 +10,7 @@ extern crate clap;
 fn main() {
     let matches = clap_app!(
         qbsdiff =>
-        (version: "0.1.0")
+        (version: "0.1.1")
         (about: "fast and memory saving bsdiff 4.x compatible delta compressor")
         (@arg BSIZE:
             -b +takes_value
