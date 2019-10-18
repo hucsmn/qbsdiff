@@ -1,7 +1,6 @@
-use super::Control;
+use super::{decode_int, Control};
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
-use byteorder::{ByteOrder, LE};
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 16384;
@@ -10,12 +9,12 @@ pub const BUFFER_SIZE: usize = 16384;
 pub const DELTA_MIN: usize = 1024;
 
 /// Fast and memory saving patcher comaptible with bspatch.
-/// 
+///
 /// Apply patch to source using a 4k buffer:
 /// ```
 /// use std::io;
 /// use qbsdiff::Bspatch;
-/// 
+///
 /// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut target = Vec::new();
 ///     Bspatch::new(patch)?
@@ -24,12 +23,12 @@ pub const DELTA_MIN: usize = 1024;
 ///     Ok(target)
 /// }
 /// ```
-/// 
+///
 /// Preallocate target vector before applying patch:
 /// ```
 /// use std::io;
 /// use qbsdiff::Bspatch;
-/// 
+///
 /// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
 ///     let patcher = Bspatch::new(patch)?;
 ///     let mut target = Vec::with_capacity(patcher.hint_target_size() as usize);
@@ -48,7 +47,7 @@ pub struct Bspatch<'p> {
 
 impl<'p> Bspatch<'p> {
     /// Parses given bsdiff 4.x patch.
-    /// 
+    ///
     /// Returns error if parsing failed.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
         let (tsize, bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
@@ -75,10 +74,10 @@ impl<'p> Bspatch<'p> {
     }
 
     /// Sets the initial delta cache size, (`dm > 128`, default is `DELTA_MIN`).
-    /// 
+    ///
     /// The delta cache is dynamic and can grow up when needed (but keeps not
     /// greater than the size of main copy buffer).
-    /// 
+    ///
     /// This may be deprecated in later versions.
     pub fn delta_min(mut self, mut dm: usize) -> Self {
         if dm < 128 {
@@ -94,7 +93,7 @@ impl<'p> Bspatch<'p> {
     }
 
     /// Applies the patch to source data and outputs the target stream.
-    /// 
+    ///
     /// Returns count of bytes writed to target if no error encountered.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let ctx = Context::new(
@@ -279,17 +278,6 @@ where
                 self.dlt.set_len(size);
             }
         }
-    }
-}
-
-/// Decodes integer.
-#[inline]
-fn decode_int(b: &[u8]) -> i64 {
-    let x = LE::read_u64(b);
-    if x >> 63 == 0 || x == 0x8000000000000000 {
-        x as i64
-    } else {
-        ((x & 0x7fffffffffffffff) as i64).wrapping_neg()
     }
 }
 

@@ -1,11 +1,10 @@
 #![allow(unused)]
 
-use super::Control;
+use super::{encode_int, Control};
 use bzip2::write::BzEncoder;
 use std::io::{BufWriter, Cursor, Error, ErrorKind, Result, Write};
 use std::ops::Range;
 use suffix_array::SuffixArray;
-use byteorder::{ByteOrder, LE};
 
 /// Compression level of the bzip2 compressor.
 pub use bzip2::Compression;
@@ -26,13 +25,13 @@ pub const LEVEL: Compression = Compression::Default;
 /// execuatbles.
 ///
 /// Source data size should not be greater than MAX_LENGTH (about 4 GiB).
-/// 
+///
 /// Compares source with target and generates patch using the best compression
 /// level:
 /// ```
 /// use std::io;
 /// use qbsdiff::{Bsdiff, Compression};
-/// 
+///
 /// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut patch = Vec::new();
 ///     Bsdiff::new(source)
@@ -301,16 +300,6 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
         }
 
         (a0, b)
-    }
-}
-
-/// Encodes integer.
-#[inline]
-fn encode_int(x: i64, b: &mut [u8]) {
-    if x < 0 {
-        LE::write_u64(b, x.wrapping_neg() as u64 | 0x8000000000000000);
-    } else {
-        LE::write_u64(b, x as u64);
     }
 }
 

@@ -37,5 +37,5 @@ path = "cmd/qbspatch.rs"
 required-features = ["cmd"]
 
 [[test]]
-name = "compat"
-path = "tests/compat.rs"
+name = "sample_compat"
+path = "tests/sample_compat.rs"
