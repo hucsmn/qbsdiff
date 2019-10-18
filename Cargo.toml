@@ -39,3 +39,7 @@ required-features = ["cmd"]
 [[test]]
 name = "sample_compat"
 path = "tests/sample_compat.rs"
+
+[[test]]
+name = "random_compat"
+path = "tests/random_compat.rs"

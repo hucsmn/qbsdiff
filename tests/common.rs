@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use chrono::Utc;
 use qbsdiff::{Bsdiff, Bspatch};
 use rand::random;
@@ -80,8 +82,7 @@ pub fn create_temp<B: AsRef<[u8]>>(bytes: B) -> io::Result<path::PathBuf> {
     let id = format!("{}-{:x}", Utc::now().format("%s.%f"), random::<u32>());
     let p = dir.join(id);
 
-    let mut f = File::create(p.as_path())?;
-    f.write_all(bytes.as_ref())?;
+    store_file(p.as_path(), bytes)?;
     Ok(p)
 }
 
@@ -96,4 +97,21 @@ pub fn fetch_file<P: AsRef<path::Path>>(name: P) -> io::Result<Vec<u8>> {
     file.seek(io::SeekFrom::Start(0))?;
     file.read_to_end(&mut data)?;
     Ok(data)
+}
+
+pub fn store_file<P, B>(name: P, bytes: B) -> io::Result<()>
+where
+    P: AsRef<path::Path>,
+    B: AsRef<[u8]>,
+{
+    let mut file = File::create(name.as_ref())?;
+    file.write_all(bytes.as_ref())
+}
+
+pub fn exists_file<P: AsRef<path::Path>>(name: P) -> bool {
+    if let Ok(meta) = fs::metadata(name) {
+        meta.is_file()
+    } else {
+        false
+    }
 }

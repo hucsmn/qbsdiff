@@ -10,22 +10,10 @@ use std::path;
 fn qbsdiff_bspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!(
-            "qbsdiff/bspatch `{}`: s <- `{:?}`",
-            sample.name, sample.source
-        );
+        eprintln!("qbsdiff_bspatch_compat: {}", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
-
-        eprintln!(
-            "qbsdiff/bspatch `{}`: t <- `{:?}`",
-            sample.name, sample.target
-        );
         let t = fetch_file(sample.target.as_path()).unwrap();
-
-        eprintln!("qbsdiff/bspatch `{}`: p <- qbsdiff(s, t)", sample.name);
         let p = qbsdiff(&s[..], &t[..]).unwrap();
-
-        eprintln!("qbsdiff/bspatch `{}`: bspatch(s, p) ?= t", sample.name);
         let t1 = bspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
             panic!("[{}] bspatch(s, qbsdiff(s, t)) != t", sample.name);
@@ -37,22 +25,10 @@ fn qbsdiff_bspatch_compat() {
 fn bsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!(
-            "bsdiff/qbspatch `{}`: s <- `{:?}`",
-            sample.name, sample.source
-        );
+        eprintln!("bsdiff_qbspatch_compat: {}", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
-
-        eprintln!(
-            "bsdiff/qbspatch `{}`: t <- `{:?}`",
-            sample.name, sample.target
-        );
         let t = fetch_file(sample.target.as_path()).unwrap();
-
-        eprintln!("bsdiff/qbspatch `{}`: p <- bsdiff(s, t)", sample.name);
         let p = bsdiff(&s[..], &t[..]).unwrap();
-
-        eprintln!("bsdiff/qbspatch `{}`: qbspatch(s, p) ?= t", sample.name);
         let t1 = qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
             panic!("[{}] qbspatch(s, bsdiff(s, t)) != t", sample.name);
@@ -64,22 +40,10 @@ fn bsdiff_qbspatch_compat() {
 fn qbsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!(
-            "qbsdiff/qbspatch `{}`: s <- `{:?}`",
-            sample.name, sample.source
-        );
+        eprintln!("qbsdiff_qbspatch_compat: {}", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
-
-        eprintln!(
-            "qbsdiff/qbspatch `{}`: t <- `{:?}`",
-            sample.name, sample.target
-        );
         let t = fetch_file(sample.target.as_path()).unwrap();
-
-        eprintln!("qbsdiff/qbspatch `{}`: p <- qbsdiff(s, t)", sample.name);
         let p = qbsdiff(&s[..], &t[..]).unwrap();
-
-        eprintln!("qbsdiff/qbspatch `{}`: qbspatch(s, p) ?= t", sample.name);
         let t1 = qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
             panic!("[{}] qbspatch(s, qbsdiff(s, t)) != t", sample.name);
