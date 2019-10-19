@@ -34,31 +34,33 @@ pub const LEVEL: Compression = Compression::Default;
 ///
 /// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut patch = Vec::new();
-///     Bsdiff::new(source)
+///     Bsdiff::new(source, target)
 ///         .compression_level(Compression::Best)
-///         .compare(target, io::Cursor::new(&mut patch))?;
+///         .compare(io::Cursor::new(&mut patch))?;
 ///     Ok(patch)
 /// }
 /// ```
-pub struct Bsdiff<'s> {
+pub struct Bsdiff<'s, 't> {
     s: &'s [u8],
+    t: &'t [u8],
     sa: SuffixArray<'s>,
     dismat: usize,
     bsize: usize,
     level: Compression,
 }
 
-impl<'s> Bsdiff<'s> {
+impl<'s, 't> Bsdiff<'s, 't> {
     /// Prepares for delta compression and immediately sorts the suffix array.
     ///
     /// Panics if the length of source data is greater than MAX_LENGTH.
-    pub fn new(source: &'s [u8]) -> Self {
+    pub fn new(source: &'s [u8], target: &'t [u8]) -> Self {
         if source.len() > MAX_LENGTH {
             panic!("source data is too large to be indexed");
         }
 
         Bsdiff {
             s: source,
+            t: target,
             sa: SuffixArray::new(source),
             dismat: DISMATCH_COUNT,
             level: Compression::Default,
@@ -93,8 +95,8 @@ impl<'s> Bsdiff<'s> {
     /// Starts searching matches in target and constructing the patch file.
     ///
     /// Returns the final size of bsdiff 4.x compatible patch file.
-    pub fn compare<P: Write>(&self, target: &[u8], patch: P) -> Result<u64> {
-        let ctx = Context::new(self.s, target, &self.sa, self.dismat);
+    pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
+        let ctx = Context::new(self.s, self.t, &self.sa, self.dismat);
         ctx.compare(patch, self.level, self.bsize)
     }
 }

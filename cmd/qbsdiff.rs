@@ -98,9 +98,9 @@ impl BsdiffApp {
     }
 
     pub fn execute(self) -> io::Result<()> {
-        Bsdiff::new(&self.source[..])
+        Bsdiff::new(&self.source[..], &self.target[..])
             .buffer_size(self.bsize)
-            .compare(&self.target[..], self.patch)?;
+            .compare(self.patch)?;
         Ok(())
     }
 }

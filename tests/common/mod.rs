@@ -31,7 +31,7 @@ pub fn bsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
 
 pub fn qbsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
     let mut p = Vec::new();
-    Bsdiff::new(s).compare(t, io::Cursor::new(&mut p))?;
+    Bsdiff::new(s, t).compare(io::Cursor::new(&mut p))?;
     Ok(p)
 }
 
