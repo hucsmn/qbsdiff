@@ -11,12 +11,7 @@ use std::path;
 use subprocess::Exec;
 
 pub fn bsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
-    let mut bin = tests_dir().join("bin");
-    if cfg!(windows) {
-        bin = bin.join("bsdiff.exe");
-    } else {
-        bin = bin.join("bsdiff");
-    }
+    let bin = get_binary("bsdiff")?;
 
     let spath = create_temp(s)?;
     let tpath = create_temp(t)?;
@@ -41,12 +36,7 @@ pub fn qbsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
 }
 
 pub fn bspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
-    let mut bin = tests_dir().join("bin");
-    if cfg!(windows) {
-        bin = bin.join("bspatch.exe");
-    } else {
-        bin = bin.join("bspatch");
-    }
+    let bin = get_binary("bspatch")?;
 
     let spath = create_temp(s)?;
     let tpath = create_temp(b"")?;
@@ -73,6 +63,19 @@ pub fn qbspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
 
 pub fn tests_dir() -> path::PathBuf {
     path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+#[cfg(windows)]
+fn get_binary(name: &'static str) -> io::Result<path::PathBuf> {
+    Ok(tests_dir().join("bin").join(format!("{}.exe", name)))
+}
+
+#[cfg(unix)]
+fn get_binary(name: &'static str) -> io::Result<path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let bin = tests_dir().join("bin").join(name);
+    fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
+    Ok(bin)
 }
 
 pub fn create_temp<B: AsRef<[u8]>>(bytes: B) -> io::Result<path::PathBuf> {

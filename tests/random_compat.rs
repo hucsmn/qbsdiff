@@ -3,6 +3,7 @@ mod common;
 use common::*;
 use rand::distributions::uniform::{SampleUniform, Uniform};
 use rand::prelude::*;
+use std::fs;
 use std::io;
 use std::path;
 
@@ -140,6 +141,7 @@ fn default_sample_descs() -> Vec<SampleDesc> {
 
 fn make_samples(descs: &[SampleDesc]) -> io::Result<Vec<Sample>> {
     let dir = tests_dir().join("random-caches");
+    fs::create_dir_all(dir.as_path())?;
 
     let mut samples = Vec::with_capacity(descs.len());
     for desc in descs.iter() {
