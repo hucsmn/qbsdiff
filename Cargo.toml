@@ -1,6 +1,6 @@
 [package]
 name = "qbsdiff"
-version = "0.1.2"
+version = "1.0.0"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
 edition = "2018"
 license = "MIT"
