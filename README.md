@@ -48,8 +48,8 @@ use qbsdiff::Bsdiff;
 
 fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
     let mut patch = Vec::new();
-    Bsdiff::new(source)
-        .compare(target, io::Cursor::new(&mut patch))?;
+    Bsdiff::new(source, target)
+        .compare(io::Cursor::new(&mut patch))?;
     Ok(patch)
 }
 ```
