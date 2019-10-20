@@ -1,8 +1,6 @@
-#![allow(unused)]
-
 use super::{encode_int, Control};
 use bzip2::write::BzEncoder;
-use std::io::{BufWriter, Cursor, Error, ErrorKind, Result, Write};
+use std::io::{Write, Cursor, Result};
 use std::ops::Range;
 use suffix_array::SuffixArray;
 
@@ -14,6 +12,9 @@ pub use suffix_array::MAX_LENGTH;
 
 /// Default threshold to determine dismatch.
 pub const DISMATCH_COUNT: usize = 8;
+
+/// Default threshold to determine small match.
+pub const SMALL_MATCH: usize = 12;
 
 /// Default buffer size for delta calculation.
 pub const BUFFER_SIZE: usize = 4096;
@@ -45,6 +46,7 @@ pub struct Bsdiff<'s, 't> {
     t: &'t [u8],
     sa: SuffixArray<'s>,
     dismat: usize,
+    small: usize,
     bsize: usize,
     level: Compression,
 }
@@ -63,6 +65,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
             t: target,
             sa: SuffixArray::new(source),
             dismat: DISMATCH_COUNT,
+            small: SMALL_MATCH,
             level: Compression::Default,
             bsize: BUFFER_SIZE,
         }
@@ -74,6 +77,13 @@ impl<'s, 't> Bsdiff<'s, 't> {
             dis = 1;
         }
         self.dismat = dis;
+        self
+    }
+
+    /// Sets the threshold to determine small match (`sm >= 0`, default is `SMALL_MATCH`).
+    /// If the small match threshold is zero, no matches would be skipped.
+    pub fn small_match(mut self, sm: usize) -> Self {
+        self.small = sm;
         self
     }
 
@@ -96,7 +106,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// Returns the final size of bsdiff 4.x compatible patch file.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
-        let ctx = Context::new(self.s, self.t, &self.sa, self.dismat);
+        let ctx = Context::new(self.s, self.t, &self.sa, self.dismat, self.small);
         ctx.compare(patch, self.level, self.bsize)
     }
 }
@@ -108,6 +118,7 @@ struct Context<'s, 't, 'sa> {
     sa: &'sa SuffixArray<'s>,
 
     dismat: usize,
+    small: usize,
 
     i0: usize,
     j0: usize,
@@ -117,12 +128,13 @@ struct Context<'s, 't, 'sa> {
 
 impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'sa SuffixArray<'s>, dismat: usize) -> Self {
+    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'sa SuffixArray<'s>, dismat: usize, small: usize) -> Self {
         Context {
             s,
             t,
             sa,
             dismat,
+            small,
             i0: 0,
             j0: 0,
             n0: 0,
@@ -249,25 +261,25 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
                 k += 1;
             }
 
-            if m == n && n != 0 {
-                // Non-empty exact match is considered as possible similar bytes.
+            if n == 0 {
+                // Match nothing.
+                j += 1;
                 m = 0;
+            } else if m == n {
+                // Non-empty exact match is considered as possible similar bytes.
                 j += n;
-                continue;
+                m = 0;
+            } else if n <= self.small {
+                // Skip small matches.
+                j += n;
+                m = 0;
             } else if n <= m + self.dismat {
                 // Bytes with too few dismatches is considered as possible similar bytes.
-                if j < k {
-                    let i = self.i0.saturating_add(j - self.j0);
-                    if i < self.s.len() && self.s[i] == self.t[j] {
-                        m -= 1;
-                    }
-                    j += 1;
-                } else {
-                    j += 1;
-                    k = j;
-                    m = 0;
+                let i = self.i0.saturating_add(j - self.j0);
+                if i < self.s.len() && self.s[i] == self.t[j] {
+                    m -= 1;
                 }
-                continue;
+                j += 1;
             } else {
                 // The count of dismatches is sufficient.
                 return Some((i, j, n));

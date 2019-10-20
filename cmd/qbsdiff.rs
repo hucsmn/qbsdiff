@@ -15,6 +15,9 @@ fn main() {
         (@arg BSIZE:
             -b +takes_value
             "buffer size")
+        (@arg SMALL:
+            -s +takes_value
+            "skip small matches")
         (@arg SOURCE:
             +required
             "source file")
@@ -27,11 +30,12 @@ fn main() {
     .get_matches();
 
     let bsize_expr = matches.value_of("BSIZE").unwrap_or("4096");
+    let small_expr = matches.value_of("SMALL").unwrap_or("8");
     let source_name = matches.value_of("SOURCE").unwrap();
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();
 
-    match BsdiffApp::new(bsize_expr, source_name, target_name, patch_name) {
+    match BsdiffApp::new(bsize_expr, small_expr, source_name, target_name, patch_name) {
         Ok(app) => {
             if let Err(e) = app.execute() {
                 eprintln!("error: {}", e);
@@ -46,20 +50,19 @@ struct BsdiffApp {
     target: Vec<u8>,
     patch: Box<dyn Write>,
     bsize: usize,
+    small: usize,
 }
 
 impl BsdiffApp {
     pub fn new(
         bsize_expr: &str,
+        small_expr: &str,
         source_name: &str,
         target_name: &str,
         patch_name: &str,
     ) -> io::Result<Self> {
-        let bsize;
-        match usize::from_str(bsize_expr) {
-            Ok(n) => bsize = n,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
-        }
+        let bsize = parse_usize(bsize_expr)?;
+        let small = parse_usize(small_expr)?;
 
         if source_name == "-" && target_name == "-" {
             return Err(io::Error::new(
@@ -94,13 +97,22 @@ impl BsdiffApp {
             target,
             patch,
             bsize,
+            small,
         })
     }
 
     pub fn execute(self) -> io::Result<()> {
         Bsdiff::new(&self.source[..], &self.target[..])
             .buffer_size(self.bsize)
+            .small_match(self.small)
             .compare(self.patch)?;
         Ok(())
+    }
+}
+
+fn parse_usize(expr: &str) -> io::Result<usize> {
+    match usize::from_str(expr) {
+        Ok(n) => Ok(n),
+        Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
     }
 }
