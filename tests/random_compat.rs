@@ -13,12 +13,12 @@ fn random_qbsdiff_bspatch_compat() {
     for sample in samples.iter() {
         let s = fetch_file(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
-            eprintln!("random_qbsdiff_bspatch_compat: {} - {}", sample.name, i);
+            eprintln!("qbsdiff/bspatch `{}`/`{}`", sample.name, i);
             let t = fetch_file(target.as_path()).unwrap();
             let p = qbsdiff(&s[..], &t[..]).unwrap();
             let t1 = bspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
-                panic!("[{} - {}] bspatch(s, qbsdiff(s, t)) != t", sample.name, i);
+                panic!("incompatible: qbsdiff/bspatch `{}`/`{}`", sample.name, i);
             }
         }
     }
@@ -30,12 +30,12 @@ fn random_bsdiff_qbspatch_compat() {
     for sample in samples.iter() {
         let s = fetch_file(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
-            eprintln!("random_bsdiff_qbspatch_compat: {} - {}", sample.name, i);
+            eprintln!("bsdiff/qbspatch `{}`/`{}`", sample.name, i);
             let t = fetch_file(target.as_path()).unwrap();
             let p = bsdiff(&s[..], &t[..]).unwrap();
             let t1 = qbspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
-                panic!("[{} - {}] qbspatch(s, bsdiff(s, t)) != t", sample.name, i);
+                panic!("incompatible: bsdiff/qbspatch `{}`/`{}`", sample.name, i);
             }
         }
     }
@@ -47,12 +47,12 @@ fn random_qbsdiff_qbspatch_compat() {
     for sample in samples.iter() {
         let s = fetch_file(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
-            eprintln!("random_qbsdiff_qbspatch_compat: {} - {}", sample.name, i);
+            eprintln!("qbsdiff/qbspatch `{}`/`{}`", sample.name, i);
             let t = fetch_file(target.as_path()).unwrap();
             let p = qbsdiff(&s[..], &t[..]).unwrap();
             let t1 = qbspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
-                panic!("[{} - {}] qbspatch(s, qbsdiff(s, t)) != t", sample.name, i);
+                panic!("incompatible: qbsdiff/qbspatch `{}`/`{}`", sample.name, i);
             }
         }
     }
@@ -109,6 +109,16 @@ fn default_sample_descs() -> Vec<SampleDesc> {
         SampleDesc {
             name: "rand-4k",
             source: Random(4096),
+            targets: vec![
+                TBytes(b""),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        SampleDesc {
+            name: "rand-256k",
+            source: Random(256*1024),
             targets: vec![
                 TBytes(b""),
                 Distort(0.0),

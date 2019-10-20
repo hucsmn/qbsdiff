@@ -1,7 +1,6 @@
-use super::{encode_int, Control};
+use super::utils::*;
 use bzip2::write::BzEncoder;
-use std::io::{Write, Cursor, Result};
-use std::ops::Range;
+use std::io::{Cursor, Result, Write};
 use suffix_array::SuffixArray;
 
 /// Compression level of the bzip2 compressor.
@@ -134,7 +133,13 @@ struct Context<'s, 't, 'sa> {
 
 impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'sa SuffixArray<'s>, dismat: usize, small: usize) -> Self {
+    pub fn new(
+        s: &'s [u8],
+        t: &'t [u8],
+        sa: &'sa SuffixArray<'s>,
+        dismat: usize,
+        small: usize,
+    ) -> Self {
         Context {
             s,
             t,
@@ -321,13 +326,6 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
 
         (a0, b)
     }
-}
-
-/// Converts Range<usize> to extent (i, n).
-#[inline]
-fn range_to_extent(range: Range<usize>) -> (usize, usize) {
-    let Range { start, end } = range;
-    (start, end.saturating_sub(start))
 }
 
 /// Scans for the data length of the max simailarity.

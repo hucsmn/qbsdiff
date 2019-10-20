@@ -10,13 +10,13 @@ use std::path;
 fn qbsdiff_bspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!("qbsdiff_bspatch_compat: {}", sample.name);
+        eprintln!("qbsdiff/bspatch `{}`", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
         let t = fetch_file(sample.target.as_path()).unwrap();
         let p = qbsdiff(&s[..], &t[..]).unwrap();
         let t1 = bspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
-            panic!("[{}] bspatch(s, qbsdiff(s, t)) != t", sample.name);
+            panic!("incompatible: qbsdiff/bspatch `{}`", sample.name);
         }
     }
 }
@@ -25,13 +25,13 @@ fn qbsdiff_bspatch_compat() {
 fn bsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!("bsdiff_qbspatch_compat: {}", sample.name);
+        eprintln!("bsdiff/qbspatch `{}`", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
         let t = fetch_file(sample.target.as_path()).unwrap();
         let p = bsdiff(&s[..], &t[..]).unwrap();
         let t1 = qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
-            panic!("[{}] qbspatch(s, bsdiff(s, t)) != t", sample.name);
+            panic!("incompatible: bsdiff/qbspatch `{}`", sample.name);
         }
     }
 }
@@ -40,13 +40,13 @@ fn bsdiff_qbspatch_compat() {
 fn qbsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        eprintln!("qbsdiff_qbspatch_compat: {}", sample.name);
+        eprintln!("qbsdiff/qbspatch `{}`", sample.name);
         let s = fetch_file(sample.source.as_path()).unwrap();
         let t = fetch_file(sample.target.as_path()).unwrap();
         let p = qbsdiff(&s[..], &t[..]).unwrap();
         let t1 = qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
-            panic!("[{}] qbspatch(s, qbsdiff(s, t)) != t", sample.name);
+            panic!("incompatible: qbsdiff/qbspatch `{}`", sample.name);
         }
     }
 }
