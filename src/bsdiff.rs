@@ -71,6 +71,12 @@ impl<'s, 't> Bsdiff<'s, 't> {
         }
     }
 
+    /// Set target data.
+    pub fn target(mut self, t: &'t [u8]) -> Self {
+        self.t = t;
+        self
+    }
+
     /// Sets the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
     pub fn dismatch_count(mut self, mut dis: usize) -> Self {
         if dis < 1 {
@@ -80,8 +86,8 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Sets the threshold to determine small match (`sm >= 0`, default is `SMALL_MATCH`).
-    /// If the small match threshold is zero, no matches would be skipped.
+    /// Sets the threshold to determine small match (default is `SMALL_MATCH`).
+    /// If set to zero, no matches would be treated as small match and skipped.
     pub fn small_match(mut self, sm: usize) -> Self {
         self.small = sm;
         self
