@@ -30,7 +30,7 @@ fn main() {
     .get_matches();
 
     let bsize_expr = matches.value_of("BSIZE").unwrap_or("4096");
-    let small_expr = matches.value_of("SMALL").unwrap_or("8");
+    let small_expr = matches.value_of("SMALL").unwrap_or("12");
     let source_name = matches.value_of("SOURCE").unwrap();
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();
