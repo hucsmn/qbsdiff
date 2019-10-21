@@ -1,5 +1,4 @@
 use byteorder::{ByteOrder, LE};
-use std::ops::Range;
 
 /// Single bsdiff control instruction.
 #[derive(Debug)]
@@ -28,11 +27,4 @@ pub fn encode_int(x: i64, b: &mut [u8]) {
     } else {
         LE::write_u64(b, x as u64);
     }
-}
-
-/// Converts Range<usize> to extent (i, n).
-#[inline]
-pub fn range_to_extent(range: Range<usize>) -> (usize, usize) {
-    let Range { start, end } = range;
-    (start, end.saturating_sub(start))
 }

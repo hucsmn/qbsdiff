@@ -1,6 +1,7 @@
 use super::utils::*;
 use bzip2::write::BzEncoder;
 use std::io::{Cursor, Result, Write};
+use std::ops::Range;
 use suffix_array::SuffixArray;
 
 /// Compression level of the bzip2 compressor.
@@ -43,7 +44,6 @@ pub const LEVEL: Compression = Compression::Default;
 pub struct Bsdiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    sa: SuffixArray<'s>,
     dismat: usize,
     small: usize,
     bsize: usize,
@@ -62,7 +62,6 @@ impl<'s, 't> Bsdiff<'s, 't> {
         Bsdiff {
             s: source,
             t: target,
-            sa: SuffixArray::new(source),
             dismat: DISMATCH_COUNT,
             small: SMALL_MATCH,
             level: Compression::Default,
@@ -70,7 +69,13 @@ impl<'s, 't> Bsdiff<'s, 't> {
         }
     }
 
-    /// Set target data.
+    /// Set the source data.
+    pub fn source(mut self, s: &'s [u8]) -> Self {
+        self.s = s;
+        self
+    }
+
+    /// Set the target data.
     pub fn target(mut self, t: &'t [u8]) -> Self {
         self.t = t;
         self
@@ -111,16 +116,104 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// Returns the final size of bsdiff 4.x compatible patch file.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
-        let ctx = Context::new(self.s, self.t, &self.sa, self.dismat, self.small);
-        ctx.compare(patch, self.level, self.bsize)
+        let diff = SaDiff::new(self.s, self.t, self.dismat, self.small);
+        pack(self.s, self.t, diff, patch, self.level, self.bsize)
     }
 }
 
-/// Bsdiff delta compression context.
-struct Context<'s, 't, 'sa> {
+/// Constructs bsdiff 4.x patch file, returns the final size of patch.
+pub fn pack<D, P>(
+    s: &[u8],
+    t: &[u8],
+    diff: D,
+    mut p: P,
+    lv: Compression,
+    bsize: usize,
+) -> Result<u64>
+where
+    D: Iterator<Item = Control>,
+    P: Write,
+{
+    let mut bz_ctrls = Vec::new();
+    let mut bz_delta = Vec::new();
+    let mut bz_extra = Vec::new();
+
+    {
+        let mut ctrls = BzEncoder::new(Cursor::new(&mut bz_ctrls), lv);
+        let mut delta = BzEncoder::new(Cursor::new(&mut bz_delta), lv);
+        let mut extra = BzEncoder::new(Cursor::new(&mut bz_extra), lv);
+
+        let mut spos = 0;
+        let mut tpos = 0;
+        let mut cbuf = [0; 24];
+        let mut dbuf = Vec::with_capacity(bsize);
+        unsafe {
+            dbuf.set_len(bsize);
+        }
+        for ctl in diff {
+            // Write control data.
+            encode_int(ctl.add as i64, &mut cbuf[0..8]);
+            encode_int(ctl.copy as i64, &mut cbuf[8..16]);
+            encode_int(ctl.seek, &mut cbuf[16..24]);
+            ctrls.write_all(&cbuf[..])?;
+
+            // Compute and write delta data, using limited buffer `dlt`.
+            if ctl.add > 0 {
+                let mut n = ctl.add;
+                while n > 0 {
+                    let k = Ord::min(n, bsize as u64) as usize;
+
+                    let dat = Iterator::zip(s[spos as usize..].iter(), t[tpos as usize..].iter());
+                    for (d, (&x, &y)) in Iterator::zip(dbuf[..k].iter_mut(), dat) {
+                        *d = y.wrapping_sub(x)
+                    }
+                    delta.write_all(&dbuf[..k])?;
+
+                    spos += k as u64;
+                    tpos += k as u64;
+                    n -= k as u64;
+                }
+            }
+
+            // Write extra data.
+            if ctl.copy > 0 {
+                extra.write_all(&t[tpos as usize..(tpos + ctl.copy) as usize])?;
+                tpos += ctl.copy;
+            }
+
+            spos = spos.wrapping_add(ctl.seek as u64);
+        }
+        ctrls.flush()?;
+        delta.flush()?;
+        extra.flush()?;
+    }
+
+    // Write header (b"BSDIFF40", control size, delta size, target size).
+    let mut header = [0; 32];
+    let csize = bz_ctrls.len() as u64;
+    let dsize = bz_delta.len() as u64;
+    let esize = bz_extra.len() as u64;
+    let tsize = t.len() as u64;
+    header[0..8].copy_from_slice(b"BSDIFF40");
+    encode_int(csize as i64, &mut header[8..16]);
+    encode_int(dsize as i64, &mut header[16..24]);
+    encode_int(tsize as i64, &mut header[24..32]);
+    p.write_all(&header[..])?;
+
+    // Write bzipped controls, delta data and extra data.
+    p.write_all(&bz_ctrls[..])?;
+    p.write_all(&bz_delta[..])?;
+    p.write_all(&bz_extra[..])?;
+    p.flush()?;
+
+    Ok(32 + csize + dsize + esize)
+}
+
+/// The delta compression algorithm based on suffix array (a variant of bsdiff 4.x).
+struct SaDiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    sa: &'sa SuffixArray<'s>,
+    sa: SuffixArray<'s>,
 
     dismat: usize,
     small: usize,
@@ -131,16 +224,11 @@ struct Context<'s, 't, 'sa> {
     b0: usize,
 }
 
-impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
+impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(
-        s: &'s [u8],
-        t: &'t [u8],
-        sa: &'sa SuffixArray<'s>,
-        dismat: usize,
-        small: usize,
-    ) -> Self {
-        Context {
+    pub fn new(s: &'s [u8], t: &'t [u8], dismat: usize, small: usize) -> Self {
+        let sa = SuffixArray::new(s);
+        SaDiff {
             s,
             t,
             sa,
@@ -151,86 +239,6 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
             n0: 0,
             b0: 0,
         }
-    }
-
-    /// Constructs bsdiff 4.x patch file, returns the final size of patch.
-    pub fn compare<P: Write>(self, mut patch: P, level: Compression, bsize: usize) -> Result<u64> {
-        let s = self.s;
-        let t = self.t;
-        let mut bz_ctrls = Vec::new();
-        let mut bz_delta = Vec::new();
-        let mut bz_extra = Vec::new();
-
-        {
-            let mut ctrls = BzEncoder::new(Cursor::new(&mut bz_ctrls), level);
-            let mut delta = BzEncoder::new(Cursor::new(&mut bz_delta), level);
-            let mut extra = BzEncoder::new(Cursor::new(&mut bz_extra), level);
-
-            let mut spos = 0;
-            let mut tpos = 0;
-            let mut ctl = [0; 24];
-            let mut dlt = Vec::with_capacity(bsize);
-            unsafe {
-                dlt.set_len(bsize);
-            }
-            for c in self {
-                // Write control data.
-                encode_int(c.add as i64, &mut ctl[0..8]);
-                encode_int(c.copy as i64, &mut ctl[8..16]);
-                encode_int(c.seek, &mut ctl[16..24]);
-                ctrls.write_all(&ctl[..])?;
-
-                // Compute and write delta data, using limited buffer `dlt`.
-                if c.add > 0 {
-                    let mut n = c.add;
-                    while n > 0 {
-                        let k = Ord::min(n, bsize as u64) as usize;
-
-                        let dat =
-                            Iterator::zip(s[spos as usize..].iter(), t[tpos as usize..].iter());
-                        for (d, (&x, &y)) in Iterator::zip(dlt[..k].iter_mut(), dat) {
-                            *d = y.wrapping_sub(x)
-                        }
-                        delta.write_all(&dlt[..k])?;
-
-                        spos += k as u64;
-                        tpos += k as u64;
-                        n -= k as u64;
-                    }
-                }
-
-                // Write extra data.
-                if c.copy > 0 {
-                    extra.write_all(&t[tpos as usize..(tpos + c.copy) as usize])?;
-                    tpos += c.copy;
-                }
-
-                spos = spos.wrapping_add(c.seek as u64);
-            }
-            ctrls.flush()?;
-            delta.flush()?;
-            extra.flush()?;
-        }
-
-        // Write header (b"BSDIFF40", control size, delta size, target size).
-        let mut header = [0; 32];
-        let csize = bz_ctrls.len() as u64;
-        let dsize = bz_delta.len() as u64;
-        let esize = bz_extra.len() as u64;
-        let tsize = t.len() as u64;
-        header[0..8].copy_from_slice(b"BSDIFF40");
-        encode_int(csize as i64, &mut header[8..16]);
-        encode_int(dsize as i64, &mut header[16..24]);
-        encode_int(tsize as i64, &mut header[24..32]);
-        patch.write_all(&header[..])?;
-
-        // Write bzipped controls, delta data and extra data.
-        patch.write_all(&bz_ctrls[..])?;
-        patch.write_all(&bz_delta[..])?;
-        patch.write_all(&bz_extra[..])?;
-        patch.flush()?;
-
-        Ok(32 + csize + dsize + esize)
     }
 
     #[inline]
@@ -328,6 +336,13 @@ impl<'s, 't, 'sa> Context<'s, 't, 'sa> {
     }
 }
 
+/// Converts Range<usize> to extent (i, n).
+#[inline]
+pub fn range_to_extent(range: Range<usize>) -> (usize, usize) {
+    let Range { start, end } = range;
+    (start, end.saturating_sub(start))
+}
+
 /// Scans for the data length of the max simailarity.
 #[inline]
 fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
@@ -370,7 +385,7 @@ fn scan_divide<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I, zs: I) -> usize {
     i
 }
 
-impl<'s, 't, 'sa> Iterator for Context<'s, 't, 'sa> {
+impl<'s, 't> Iterator for SaDiff<'s, 't> {
     type Item = Control;
 
     fn next(&mut self) -> Option<Self::Item> {
