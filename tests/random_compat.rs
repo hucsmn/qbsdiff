@@ -226,7 +226,11 @@ fn distort(source: &[u8], similar: f64) -> Vec<u8> {
     while target.len() < tsize {
         // delta
         let remain = tsize - target.len();
-        let dsize = random_between(Ord::min(16, remain), Ord::min(dmax, remain));
+        let dsize = {
+            let dhi = Ord::min(Ord::min(dmax, remain), source.len());
+            let dlo = Ord::min(16, dhi);
+            random_between(dlo, dhi)
+        };
         let offset = random_between(0, source.len() - dsize);
         for &x in source[offset..offset + dsize].iter() {
             if random_decide(rate) {
