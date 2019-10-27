@@ -265,7 +265,7 @@ impl<'s, 't> SaDiff<'s, 't> {
         let mut j = self.j0 + self.n0;
         let mut k = j;
         let mut m = 0;
-        while j < self.t.len() {
+        while j < self.t.len().saturating_sub(self.small) {
             // Finds out a possible exact match.
             let (i, n) = range_to_extent(self.sa.search_lcp(&self.t[j..]));
 
