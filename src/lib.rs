@@ -53,6 +53,7 @@ Only the patch file format is promised to be compatible.
 
 pub mod bsdiff;
 pub mod bspatch;
+mod search;
 mod utils;
 
 pub use bsdiff::{Bsdiff, Compression};

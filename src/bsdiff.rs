@@ -1,8 +1,7 @@
+use super::search::*;
 use super::utils::*;
 use bzip2::write::BzEncoder;
 use std::io::{Cursor, Result, Write};
-use std::ops::Range;
-use suffix_array::SuffixArray;
 
 /// Compression level of the bzip2 compressor.
 pub use bzip2::Compression;
@@ -213,7 +212,7 @@ where
 struct SaDiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    sa: SuffixArray<'s>,
+    ctx: RhsaSearch<'s, 't>,
 
     dismat: usize,
     small: usize,
@@ -227,11 +226,11 @@ struct SaDiff<'s, 't> {
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
     pub fn new(s: &'s [u8], t: &'t [u8], dismat: usize, small: usize) -> Self {
-        let sa = SuffixArray::new(s);
+        let ctx = RhsaSearch::new(s, t, small);
         SaDiff {
             s,
             t,
-            sa,
+            ctx,
             dismat,
             small,
             i0: 0,
@@ -256,22 +255,24 @@ impl<'s, 't> SaDiff<'s, 't> {
 
     /// Searches for the next exact match (i, j, n).
     #[inline]
-    fn search_next(&self) -> Option<(usize, usize, usize)> {
+    fn search_next(&mut self) -> Option<(usize, usize, usize)> {
         // EOF is already scanned.
         if self.j0 == self.t.len() && self.b0 == 0 {
             return None;
         }
 
+        self.ctx.forth(self.n0);
         let mut j = self.j0 + self.n0;
         let mut k = j;
         let mut m = 0;
         while j < self.t.len().saturating_sub(self.small) {
             // Finds out a possible exact match.
-            let (i, n) = range_to_extent(self.sa.search_lcp(&self.t[j..]));
+            let (i, n) = self.ctx.search();
 
             // Counts the matched bytes, and determine whether these bytes
             // should be treated as possible similar bytes, or simply as the
             // next exact match.
+
             while k < j + n {
                 let i = self.i0.saturating_add(k - self.j0);
                 if i < self.s.len() && self.s[i] == self.t[k] {
@@ -283,14 +284,17 @@ impl<'s, 't> SaDiff<'s, 't> {
             if n == 0 {
                 // Match nothing.
                 j += 1;
+                self.ctx.forth(1);
                 m = 0;
             } else if m == n {
                 // Non-empty exact match is considered as possible similar bytes.
                 j += n;
+                self.ctx.forth(n);
                 m = 0;
             } else if n <= self.small {
                 // Skip small matches.
                 j += n;
+                self.ctx.forth(n);
                 m = 0;
             } else if n <= m + self.dismat {
                 // Bytes with too few dismatches is considered as possible similar bytes.
@@ -299,6 +303,7 @@ impl<'s, 't> SaDiff<'s, 't> {
                     m -= 1;
                 }
                 j += 1;
+                self.ctx.forth(1);
             } else {
                 // The count of dismatches is sufficient.
                 return Some((i, j, n));
@@ -334,13 +339,6 @@ impl<'s, 't> SaDiff<'s, 't> {
 
         (a0, b)
     }
-}
-
-/// Converts Range<usize> to extent (i, n).
-#[inline]
-pub fn range_to_extent(range: Range<usize>) -> (usize, usize) {
-    let Range { start, end } = range;
-    (start, end.saturating_sub(start))
 }
 
 /// Scans for the data length of the max simailarity.
