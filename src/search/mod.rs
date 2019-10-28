@@ -1,5 +1,31 @@
 #![allow(dead_code)]
 
+/// The motivation of rolling hash accelerated suffix array (RHSA) is that
+/// bad performance on some special samples have been noticed:
+/// 
+/// Execution time of qbsdiff and bsdiff on qemu-m68k binaries (about 2M) is
+/// too horribly long (about 17min on i5-4200H @ 2.80GHz),
+/// while other binaries from 1M to 100M usually finished in just 1s to 30s.
+/// 
+/// With the help of flamegraph, the bottle neck is determined:
+/// bsdiff algorithm executes SuffixArray::search_lcp for too many times in
+/// those samples.
+/// 
+/// This branch attempts to accelerate suffix array searching with a table that
+/// cached rolling hash.
+/// However, the result of performance is disappointing: 
+/// 
+/// Execution time on small binaries (< 10M) is usually two times longer, while
+/// performance on special samples (qemu-m68k binaries) shows no significant
+/// improvements.
+/// 
+/// Therefore, bad performance of qbsdiff on qemu-m68k binaries is suspected to
+/// be resulted from the greed nature of bsdiff algorithm or the characteristics
+/// of those binaries.
+/// Maybe, new algorithm should be designed to better handle those bad cases.
+/// 
+/// This branch of the experimental RHSA implementation is therefore deprecated.
+
 use adler32::RollingAdler32;
 use std::collections::HashMap;
 use std::ops::Range;
