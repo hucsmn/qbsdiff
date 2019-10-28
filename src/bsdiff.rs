@@ -122,7 +122,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
 }
 
 /// Constructs bsdiff 4.x patch file, returns the final size of patch.
-pub fn pack<D, P>(
+fn pack<D, P>(
     s: &[u8],
     t: &[u8],
     diff: D,
@@ -338,7 +338,7 @@ impl<'s, 't> SaDiff<'s, 't> {
 
 /// Converts Range<usize> to extent (i, n).
 #[inline]
-pub fn range_to_extent(range: Range<usize>) -> (usize, usize) {
+fn range_to_extent(range: Range<usize>) -> (usize, usize) {
     let Range { start, end } = range;
     (start, end.saturating_sub(start))
 }
