@@ -10,7 +10,7 @@ extern crate clap;
 fn main() {
     let matches = clap_app!(
         qbspatch =>
-        (version: "1.1.1")
+        (version: "1.1.2")
         (about: "fast and memory saving bsdiff 4.x compatible patcher")
         (@arg BSIZE:
             -b +takes_value
