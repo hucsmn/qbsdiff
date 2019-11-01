@@ -4,7 +4,7 @@ Fast and memory saving bsdiff 4.x compatible delta compressor and patcher.
 Add dependency to `Cargo.toml` under your project:
 ```toml
 [dependencies]
-qbsdiff = "1.1"
+qbsdiff = "1.2"
 ```
 
 Build commands
