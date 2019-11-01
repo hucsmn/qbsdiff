@@ -10,14 +10,14 @@ pub use bzip2::Compression;
 /// Max length of the source data.
 pub use suffix_array::MAX_LENGTH;
 
-/// Default threshold to determine dismatch.
-pub const DISMATCH_COUNT: usize = 8;
-
 /// Default threshold to determine small exact match.
 pub const SMALL_MATCH: usize = 12;
 
-/// Default threshold to detect long repeating bytes in target data.
-const LONG_REPEATITION: usize = 128;
+/// Default threshold to determine dismatch.
+const DISMATCH_COUNT: usize = 8;
+
+/// Default threshold to enable binary search on suffixing similar bytes.
+const LONG_SUFFIX: usize = 256;
 
 /// Default buffer size for delta calculation.
 pub const BUFFER_SIZE: usize = 4096;
@@ -47,9 +47,9 @@ pub const LEVEL: Compression = Compression::Default;
 pub struct Bsdiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    dismat: usize,
     small: usize,
-    lrep: usize,
+    dismat: usize,
+    longsuf: usize,
     bsize: usize,
     level: Compression,
 }
@@ -66,9 +66,9 @@ impl<'s, 't> Bsdiff<'s, 't> {
         Bsdiff {
             s: source,
             t: target,
-            dismat: DISMATCH_COUNT,
             small: SMALL_MATCH,
-            lrep: LONG_REPEATITION,
+            dismat: DISMATCH_COUNT,
+            longsuf: LONG_SUFFIX,
             level: Compression::Default,
             bsize: BUFFER_SIZE,
         }
@@ -86,15 +86,6 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Sets the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
-    pub fn dismatch_count(mut self, mut dis: usize) -> Self {
-        if dis < 1 {
-            dis = 1;
-        }
-        self.dismat = dis;
-        self
-    }
-
     /// Sets the threshold to determine small match (default is `SMALL_MATCH`).
     /// If set to zero, no matches would be treated as small match and skipped.
     pub fn small_match(mut self, sm: usize) -> Self {
@@ -102,18 +93,24 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Do not export this method, because long repeatition detection is in fact
-    /// a workaround for the horrible performance we have noticed on some
-    /// special samples (qemu-m68k binaries).
-    ///
-    /// Sets the threshold to determine long repating bytes in target data
-    /// (`lr` >= 64, default is `LONG_REPEATITION`).
+    /// Sets the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
     #[allow(unused)]
-    fn long_repeation(mut self, mut lr: usize) -> Self {
-        if lr < 64 {
-            lr = 64;
+    fn dismatch_count(mut self, mut dis: usize) -> Self {
+        if dis < 1 {
+            dis = 1;
         }
-        self.lrep = lr;
+        self.dismat = dis;
+        self
+    }
+
+    /// Sets the threshold to determine long repating bytes in target data
+    /// (`lr` >= 64, default is `LONG_SUFFIX`).
+    #[allow(unused)]
+    fn long_suffix(mut self, mut ls: usize) -> Self {
+        if ls < 64 {
+            ls = 64;
+        }
+        self.longsuf = ls;
         self
     }
 
@@ -136,7 +133,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// Returns the final size of bsdiff 4.x compatible patch file.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
-        let diff = SaDiff::new(self.s, self.t, self.dismat, self.small, self.lrep);
+        let diff = SaDiff::new(self.s, self.t, self.small, self.dismat, self.longsuf);
         pack(self.s, self.t, diff, patch, self.level, self.bsize)
     }
 }
@@ -227,10 +224,10 @@ struct SaDiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
     sa: SuffixArray<'s>,
-    st: SkipTable,
 
-    dismat: usize,
     small: usize,
+    dismat: usize,
+    longsuf: usize,
 
     i0: usize,
     j0: usize,
@@ -240,16 +237,15 @@ struct SaDiff<'s, 't> {
 
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], dismat: usize, small: usize, lrep: usize) -> Self {
+    pub fn new(s: &'s [u8], t: &'t [u8], small: usize, dismat: usize, longsuf: usize) -> Self {
         let sa = SuffixArray::new(s);
-        let st = SkipTable::new(t, lrep);
         SaDiff {
             s,
             t,
             sa,
-            st,
-            dismat,
             small,
+            dismat,
+            longsuf,
             i0: 0,
             j0: 0,
             n0: 0,
@@ -282,15 +278,6 @@ impl<'s, 't> SaDiff<'s, 't> {
         let mut k = j;
         let mut m = 0;
         while j < self.t.len().saturating_sub(self.small) {
-            // Long repeating bytes are easy to compress as extra data.
-            // Therefore, we simply skip them to avoid massive meaningless
-            // suffix array searching noticed in some sparse samples.
-            if let Some(skip) = self.st.pop(j) {
-                j += skip;
-                k = j;
-                m = 0;
-            }
-
             // Finds out a possible exact match.
             let (i, n) = range_to_extent(self.sa.search_lcp(&self.t[j..]));
 
@@ -310,23 +297,48 @@ impl<'s, 't> SaDiff<'s, 't> {
                 j += 1;
                 m = 0;
             } else if m == n || n <= self.small {
-                // Skip small matches and non-empty exact matches to improve
-                // both patch quality and bsdiff speed.
+                // Skip small matches and non-empty exact matches to speed up
+                // searching and improve patch quality.
                 j += n;
                 m = 0;
             } else if n <= m + self.dismat {
-                // Bytes with insufficient dismatches is treated as possible
+                // Bytes with insufficient dismatches were treated as possible
                 // suffixing similar data.
+                //
                 // The entire match is s[i0-b0..i0+n0+a0] ~= t[j0-b0..j0+n0+a0],
                 // where
                 //     n0 is the exact match (s[i0..i0+n0] == t[j0..j0+n0]),
                 //     b0 is the prefixing similar bytes,
                 //     a0 is tyhe sufixing similar bytes.
-                let i = self.i0.saturating_add(j - self.j0);
-                if i < self.s.len() && self.s[i] == self.t[j] {
-                    m -= 1;
+                //
+                // Use binary search to approximately find out a proper skip
+                // length for long suffixing similar bytes.
+                // Do linear search instead when length is not long enough.
+                let next;
+                if n > self.longsuf {
+                    let mut x = 0;
+                    let mut y = n;
+                    while x < y {
+                        let z = x + (y - x) / 2;
+                        let (iz, nz) = range_to_extent(self.sa.search_lcp(&self.t[j + z..]));
+                        if i + n == iz + nz && j + n == j + z + nz {
+                            x = z + 1;
+                        } else {
+                            y = z;
+                        }
+                    }
+                    next = j + Ord::max(x, 1);
+                } else {
+                    next = j + 1;
                 }
-                j += 1;
+                let mut i = self.i0.saturating_add(j - self.j0);
+                while j < next {
+                    if i < self.s.len() && self.s[i] == self.t[j] {
+                        m -= 1;
+                    }
+                    i += 1;
+                    j += 1;
+                }
             } else {
                 // The count of dismatches is sufficient.
                 return Some((i, j, n));
@@ -388,49 +400,6 @@ impl<'s, 't> Iterator for SaDiff<'s, 't> {
         } else {
             None
         }
-    }
-}
-
-/// Sorted ranges of repeating bytes to skip.
-struct SkipTable {
-    tab: Vec<(u32, u32)>,
-}
-
-impl SkipTable {
-    /// Build skip table.
-    pub fn new(s: &[u8], large: usize) -> Self {
-        let mut tab = Vec::new();
-        let mut i = 0;
-        let n = s.len().saturating_sub(1);
-        while i < n {
-            let x = s[i];
-            let c = 1 + s[i + 1..].iter().take_while(|&&y| y == x).count();
-            if c >= large {
-                tab.push((i as u32, c as u32));
-            }
-            i += c;
-        }
-        tab.shrink_to_fit();
-        tab.reverse();
-        SkipTable { tab }
-    }
-
-    /// Pop until the next matched skip is found.
-    #[inline]
-    pub fn pop(&mut self, i: usize) -> Option<usize> {
-        while self.tab.len() > 0 {
-            let (off, len) = self.tab[self.tab.len() - 1];
-            let j = off as usize;
-            let k = j + len as usize;
-            if i < j {
-                break;
-            }
-            if i < k {
-                return Some(k - i);
-            }
-            self.tab.pop();
-        }
-        None
     }
 }
 
