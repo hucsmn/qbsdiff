@@ -13,8 +13,11 @@ pub use suffix_array::MAX_LENGTH;
 /// Default threshold to determine dismatch.
 pub const DISMATCH_COUNT: usize = 8;
 
-/// Default threshold to determine small match.
+/// Default threshold to determine small exact match.
 pub const SMALL_MATCH: usize = 12;
+
+/// Default threshold to detect long repeating bytes in target data.
+const LONG_REPEATITION: usize = 128;
 
 /// Default buffer size for delta calculation.
 pub const BUFFER_SIZE: usize = 4096;
@@ -46,6 +49,7 @@ pub struct Bsdiff<'s, 't> {
     t: &'t [u8],
     dismat: usize,
     small: usize,
+    lrep: usize,
     bsize: usize,
     level: Compression,
 }
@@ -64,6 +68,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
             t: target,
             dismat: DISMATCH_COUNT,
             small: SMALL_MATCH,
+            lrep: LONG_REPEATITION,
             level: Compression::Default,
             bsize: BUFFER_SIZE,
         }
@@ -97,6 +102,21 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
+    /// Do not export this method, because long repeatition detection is in fact
+    /// a workaround for the horrible performance we have noticed on some
+    /// special samples (qemu-m68k binaries).
+    ///
+    /// Sets the threshold to determine long repating bytes in target data
+    /// (`lr` >= 64, default is `LONG_REPEATITION`).
+    #[allow(unused)]
+    fn long_repeation(mut self, mut lr: usize) -> Self {
+        if lr < 64 {
+            lr = 64;
+        }
+        self.lrep = lr;
+        self
+    }
+
     /// Sets the compression level of bzip2 (default is `LEVEL`).
     pub fn compression_level(mut self, lv: Compression) -> Self {
         self.level = lv;
@@ -116,20 +136,13 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// Returns the final size of bsdiff 4.x compatible patch file.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
-        let diff = SaDiff::new(self.s, self.t, self.dismat, self.small);
+        let diff = SaDiff::new(self.s, self.t, self.dismat, self.small, self.lrep);
         pack(self.s, self.t, diff, patch, self.level, self.bsize)
     }
 }
 
 /// Constructs bsdiff 4.x patch file, returns the final size of patch.
-fn pack<D, P>(
-    s: &[u8],
-    t: &[u8],
-    diff: D,
-    mut p: P,
-    lv: Compression,
-    bsize: usize,
-) -> Result<u64>
+fn pack<D, P>(s: &[u8], t: &[u8], diff: D, mut p: P, lv: Compression, bsize: usize) -> Result<u64>
 where
     D: Iterator<Item = Control>,
     P: Write,
@@ -214,6 +227,7 @@ struct SaDiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
     sa: SuffixArray<'s>,
+    st: SkipTable,
 
     dismat: usize,
     small: usize,
@@ -226,12 +240,14 @@ struct SaDiff<'s, 't> {
 
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], dismat: usize, small: usize) -> Self {
+    pub fn new(s: &'s [u8], t: &'t [u8], dismat: usize, small: usize, lrep: usize) -> Self {
         let sa = SuffixArray::new(s);
+        let st = SkipTable::new(t, lrep);
         SaDiff {
             s,
             t,
             sa,
+            st,
             dismat,
             small,
             i0: 0,
@@ -256,7 +272,7 @@ impl<'s, 't> SaDiff<'s, 't> {
 
     /// Searches for the next exact match (i, j, n).
     #[inline]
-    fn search_next(&self) -> Option<(usize, usize, usize)> {
+    fn search_next(&mut self) -> Option<(usize, usize, usize)> {
         // EOF is already scanned.
         if self.j0 == self.t.len() && self.b0 == 0 {
             return None;
@@ -266,6 +282,15 @@ impl<'s, 't> SaDiff<'s, 't> {
         let mut k = j;
         let mut m = 0;
         while j < self.t.len().saturating_sub(self.small) {
+            // Long repeating bytes are easy to compress as extra data.
+            // Therefore, we simply skip them to avoid massive meaningless
+            // suffix array searching noticed in some sparse samples.
+            if let Some(skip) = self.st.pop(j) {
+                j += skip;
+                k = j;
+                m = 0;
+            }
+
             // Finds out a possible exact match.
             let (i, n) = range_to_extent(self.sa.search_lcp(&self.t[j..]));
 
@@ -284,16 +309,19 @@ impl<'s, 't> SaDiff<'s, 't> {
                 // Match nothing.
                 j += 1;
                 m = 0;
-            } else if m == n {
-                // Non-empty exact match is considered as possible similar bytes.
-                j += n;
-                m = 0;
-            } else if n <= self.small {
-                // Skip small matches.
+            } else if m == n || n <= self.small {
+                // Skip small matches and non-empty exact matches to improve
+                // both patch quality and bsdiff speed.
                 j += n;
                 m = 0;
             } else if n <= m + self.dismat {
-                // Bytes with too few dismatches is considered as possible similar bytes.
+                // Bytes with insufficient dismatches is treated as possible
+                // suffixing similar data.
+                // The entire match is s[i0-b0..i0+n0+a0] ~= t[j0-b0..j0+n0+a0],
+                // where
+                //     n0 is the exact match (s[i0..i0+n0] == t[j0..j0+n0]),
+                //     b0 is the prefixing similar bytes,
+                //     a0 is tyhe sufixing similar bytes.
                 let i = self.i0.saturating_add(j - self.j0);
                 if i < self.s.len() && self.s[i] == self.t[j] {
                     m -= 1;
@@ -333,6 +361,76 @@ impl<'s, 't> SaDiff<'s, 't> {
         }
 
         (a0, b)
+    }
+}
+
+impl<'s, 't> Iterator for SaDiff<'s, 't> {
+    type Item = Control;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((i, j, n)) = self.search_next() {
+            let (i0, j0, n0, b0) = self.previous_state();
+            let (a0, b) = self.shrink_gap(i, j);
+
+            // source:
+            //     ...(   b0   ,   n0   ,   a0   )...(   b   ,...
+            //        ^ spos   ^ i0                ^         ^ i
+            //                                     | distance can be negative
+            // target:
+            //     ...(   b0   ,   n0   ,   a0   ;   copy   )(   b   ,...
+            //        ^ tpos   ^ j0              ^ tpos+add          ^ j
+            let add = (b0 + n0 + a0) as u64;
+            let copy = ((j - b) - (j0 + n0 + a0)) as u64;
+            let seek = (i - b).wrapping_sub(i0 + n0 + a0) as isize as i64;
+
+            self.update_state(i, j, n, b);
+            Some(Control { add, copy, seek })
+        } else {
+            None
+        }
+    }
+}
+
+/// Sorted ranges of repeating bytes to skip.
+struct SkipTable {
+    tab: Vec<(u32, u32)>,
+}
+
+impl SkipTable {
+    /// Build skip table.
+    pub fn new(s: &[u8], large: usize) -> Self {
+        let mut tab = Vec::new();
+        let mut i = 0;
+        let n = s.len().saturating_sub(1);
+        while i < n {
+            let x = s[i];
+            let c = 1 + s[i + 1..].iter().take_while(|&&y| y == x).count();
+            if c >= large {
+                tab.push((i as u32, c as u32));
+            }
+            i += c;
+        }
+        tab.shrink_to_fit();
+        tab.reverse();
+        SkipTable { tab }
+    }
+
+    /// Pop until the next matched skip is found.
+    #[inline]
+    pub fn pop(&mut self, i: usize) -> Option<usize> {
+        while self.tab.len() > 0 {
+            let (off, len) = self.tab[self.tab.len() - 1];
+            let j = off as usize;
+            let k = j + len as usize;
+            if i < j {
+                break;
+            }
+            if i < k {
+                return Some(k - i);
+            }
+            self.tab.pop();
+        }
+        None
     }
 }
 
@@ -383,31 +481,4 @@ fn scan_divide<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I, zs: I) -> usize {
     }
 
     i
-}
-
-impl<'s, 't> Iterator for SaDiff<'s, 't> {
-    type Item = Control;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some((i, j, n)) = self.search_next() {
-            let (i0, j0, n0, b0) = self.previous_state();
-            let (a0, b) = self.shrink_gap(i, j);
-
-            // source:
-            //     ...(   b0   ,   n0   ,   a0   )...(   b   ,...
-            //        ^ spos   ^ i0                ^         ^ i
-            //                                     | distance can be negative
-            // target:
-            //     ...(   b0   ,   n0   ,   a0   ;   copy   )(   b   ,...
-            //        ^ tpos   ^ j0              ^ tpos+add          ^ j
-            let add = (b0 + n0 + a0) as u64;
-            let copy = ((j - b) - (j0 + n0 + a0)) as u64;
-            let seek = (i - b).wrapping_sub(i0 + n0 + a0) as isize as i64;
-
-            self.update_state(i, j, n, b);
-            Some(Control { add, copy, seek })
-        } else {
-            None
-        }
-    }
 }
