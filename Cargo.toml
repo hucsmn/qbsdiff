@@ -21,6 +21,8 @@ globwalk = "0.7"
 subprocess = "0.1"
 rand = "0.7"
 chrono = "0.4"
+quickcheck = "0.9"
+quickcheck_macros = "0.8"
 
 [features]
 default = []
