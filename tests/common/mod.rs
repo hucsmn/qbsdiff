@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use chrono::Utc;
+use globwalk::glob;
 use qbsdiff::{Bsdiff, Bspatch};
 use rand::random;
 use std::fs;
@@ -117,4 +118,56 @@ pub fn exists_file<P: AsRef<path::Path>>(name: P) -> bool {
     } else {
         false
     }
+}
+
+pub struct Sample {
+    pub name: String,
+    pub source: path::PathBuf,
+    pub target: path::PathBuf,
+}
+
+pub fn list_samples() -> io::Result<Vec<Sample>> {
+    let data_dir = tests_dir().join("samples");
+
+    let mut samples = Vec::new();
+    let pat = data_dir.join("*.s");
+    let walker;
+    if let Some(p) = pat.to_str() {
+        walker = glob(p).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "cannot convert to str",
+        ));
+    }
+    for result in walker.into_iter() {
+        let source = result
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+            .into_path();
+
+        let name;
+        let target;
+        if let (Some(d), Some(n)) = (source.parent(), source.file_stem()) {
+            let mut nbuf = n.to_owned();
+            name = nbuf.to_string_lossy().into_owned();
+            nbuf.push(".t");
+            target = path::PathBuf::from(d).join(nbuf.as_os_str());
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "cannot make target path",
+            ));
+        }
+        if let Err(_) = fs::metadata(target.as_path()) {
+            continue;
+        }
+
+        samples.push(Sample {
+            name,
+            source,
+            target,
+        });
+    }
+
+    Ok(samples)
 }
