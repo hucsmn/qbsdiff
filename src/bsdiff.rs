@@ -365,8 +365,8 @@ impl<'s, 't> SaDiff<'s, 't> {
             let zs = prefix[prefix.len() - b..prefix.len() - b + n].iter();
 
             let i = scan_divide(xs, ys, zs);
-            a0 = a0 - n + i;
-            b = b - i;
+            a0 -= n - i;
+            b -= i;
         }
 
         (a0, b)
