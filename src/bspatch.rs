@@ -50,7 +50,12 @@ impl<'p> Bspatch<'p> {
     ///
     /// Returns error if parsing failed.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
-        let (tsize, bz_ctrls, bz_delta, bz_extra) = parse(patch)?;
+        let PatchFile {
+            tsize,
+            bz_ctrls,
+            bz_delta,
+            bz_extra,
+        } = parse(patch)?;
         let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
         let delta = BzDecoder::new(Cursor::new(bz_delta));
         let extra = BzDecoder::new(Cursor::new(bz_extra));
@@ -109,8 +114,15 @@ impl<'p> Bspatch<'p> {
     }
 }
 
+struct PatchFile<'a> {
+    tsize: u64,
+    bz_ctrls: &'a [u8],
+    bz_delta: &'a [u8],
+    bz_extra: &'a [u8],
+}
+
 /// Parse the bsdiff 4.x patch file.
-fn parse(patch: &[u8]) -> Result<(u64, &[u8], &[u8], &[u8])> {
+fn parse(patch: &[u8]) -> Result<PatchFile> {
     if patch.len() < 32 || &patch[..8] != b"BSDIFF40" {
         return Err(Error::new(ErrorKind::InvalidData, "not a valid patch"));
     }
@@ -126,7 +138,12 @@ fn parse(patch: &[u8]) -> Result<(u64, &[u8], &[u8], &[u8])> {
     let (bz_ctrls, remain) = remain.split_at(csize as usize);
     let (bz_delta, bz_extra) = remain.split_at(dsize as usize);
 
-    Ok((tsize, bz_ctrls, bz_delta, bz_extra))
+    Ok(PatchFile {
+        tsize,
+        bz_ctrls,
+        bz_delta,
+        bz_extra,
+    })
 }
 
 /// Bspatch context.
