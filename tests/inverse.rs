@@ -1,6 +1,7 @@
 mod common;
 
 use common::*;
+use std::io;
 
 extern crate quickcheck;
 #[macro_use(quickcheck)]
@@ -22,7 +23,7 @@ fn invert_samples() {
 }
 
 #[quickcheck]
-fn invert_random(s: Vec<u8>, t: Vec<u8>) -> bool {
-    let p = qbsdiff(&s[..], &t[..]).unwrap();
-    return qbspatch(&s[..], &p[..]).unwrap() == t;
+fn invert_random(s: Vec<u8>, t: Vec<u8>) -> io::Result<bool> {
+    let p = qbsdiff(&s[..], &t[..])?;
+    return Ok(qbspatch(&s[..], &p[..])? == t);
 }
