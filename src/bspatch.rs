@@ -87,9 +87,7 @@ impl<'p> Bspatch<'p> {
     /// Returns count of bytes writed to target if no error encountered.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let ctx = Context::new(
-            self.patch.ctrls,
-            self.patch.delta,
-            self.patch.extra,
+            self.patch,
             source,
             target,
             self.buffer_size,
@@ -136,19 +134,14 @@ fn parse(patch: &[u8]) -> Result<PatchFile> {
 }
 
 /// Bspatch context.
-struct Context<'s, T, C, D, E>
+struct Context<'s, 'p, T>
 where
     T: Write,
-    C: Read,
-    D: Read,
-    E: Read,
 {
     source: Cursor<&'s [u8]>,
     target: T,
 
-    ctrls: C,
-    delta: D,
-    extra: E,
+    patch: PatchFile<'p>,
 
     n: usize,
     buf: Vec<u8>,
@@ -158,18 +151,13 @@ where
     total: u64,
 }
 
-impl<'s, T, C, D, E> Context<'s, T, C, D, E>
+impl<'s, 'p, T> Context<'s, 'p, T>
 where
     T: Write,
-    C: Read,
-    D: Read,
-    E: Read,
 {
     /// Create context.
     pub fn new(
-        ctrls: C,
-        delta: D,
-        extra: E,
+        patch: PatchFile<'p>,
         source: &'s [u8],
         target: T,
         bsize: usize,
@@ -185,9 +173,7 @@ where
         Context {
             source: Cursor::new(source),
             target,
-            ctrls,
-            delta,
-            extra,
+            patch,
             n: 0,
             buf,
             dlt,
@@ -217,7 +203,7 @@ where
 
     /// Reads the next control.
     fn next(&mut self) -> Option<Result<Control>> {
-        match read_exact_or_eof(&mut self.ctrls, &mut self.ctl[..]) {
+        match read_exact_or_eof(&mut self.patch.ctrls, &mut self.ctl[..]) {
             Ok(0) => return None,
             Err(e) => return Some(Err(e)),
             _ => (),
@@ -236,7 +222,7 @@ where
 
             self.source.read_exact(&mut self.buf[self.n..self.n + k])?;
             self.reserve_delta(k);
-            self.delta.read_exact(&mut self.dlt[..k])?;
+            self.patch.delta.read_exact(&mut self.dlt[..k])?;
             for i in 0..k {
                 let j = self.n + i;
                 self.buf[j] = self.buf[j].wrapping_add(self.dlt[i]);
@@ -257,7 +243,7 @@ where
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
 
-            self.extra.read_exact(&mut self.buf[self.n..self.n + k])?;
+            self.patch.extra.read_exact(&mut self.buf[self.n..self.n + k])?;
             self.n += k;
             if self.n >= self.buf.len() {
                 self.target.write_all(self.buf.as_ref())?;
