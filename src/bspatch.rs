@@ -37,10 +37,7 @@ pub const DELTA_MIN: usize = 1024;
 /// }
 /// ```
 pub struct Bspatch<'p> {
-    ctrls: BzDecoder<Cursor<&'p [u8]>>,
-    delta: BzDecoder<Cursor<&'p [u8]>>,
-    extra: BzDecoder<Cursor<&'p [u8]>>,
-    tsize: u64,
+    patch: PatchFile<'p>,
     buffer_size: usize,
     delta_min: usize,
 }
@@ -50,20 +47,8 @@ impl<'p> Bspatch<'p> {
     ///
     /// Returns error if parsing failed.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
-        let PatchFile {
-            tsize,
-            bz_ctrls,
-            bz_delta,
-            bz_extra,
-        } = parse(patch)?;
-        let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
-        let delta = BzDecoder::new(Cursor::new(bz_delta));
-        let extra = BzDecoder::new(Cursor::new(bz_extra));
         Ok(Bspatch {
-            ctrls,
-            delta,
-            extra,
-            tsize,
+            patch: parse(patch)?,
             buffer_size: BUFFER_SIZE,
             delta_min: DELTA_MIN,
         })
@@ -94,7 +79,7 @@ impl<'p> Bspatch<'p> {
 
     /// Hints the final target data size, as provided in the patch header.
     pub fn hint_target_size(&self) -> u64 {
-        self.tsize
+        self.patch.tsize
     }
 
     /// Applies the patch to source data and outputs the target stream.
@@ -102,9 +87,9 @@ impl<'p> Bspatch<'p> {
     /// Returns count of bytes writed to target if no error encountered.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let ctx = Context::new(
-            self.ctrls,
-            self.delta,
-            self.extra,
+            self.patch.ctrls,
+            self.patch.delta,
+            self.patch.extra,
             source,
             target,
             self.buffer_size,
@@ -116,9 +101,9 @@ impl<'p> Bspatch<'p> {
 
 struct PatchFile<'a> {
     tsize: u64,
-    bz_ctrls: &'a [u8],
-    bz_delta: &'a [u8],
-    bz_extra: &'a [u8],
+    ctrls: BzDecoder<Cursor<&'a [u8]>>,
+    delta: BzDecoder<Cursor<&'a [u8]>>,
+    extra: BzDecoder<Cursor<&'a [u8]>>,
 }
 
 /// Parse the bsdiff 4.x patch file.
@@ -138,11 +123,15 @@ fn parse(patch: &[u8]) -> Result<PatchFile> {
     let (bz_ctrls, remain) = remain.split_at(csize as usize);
     let (bz_delta, bz_extra) = remain.split_at(dsize as usize);
 
+    let ctrls = BzDecoder::new(Cursor::new(bz_ctrls));
+    let delta = BzDecoder::new(Cursor::new(bz_delta));
+    let extra = BzDecoder::new(Cursor::new(bz_extra));
+
     Ok(PatchFile {
         tsize,
-        bz_ctrls,
-        bz_delta,
-        bz_extra,
+        ctrls,
+        delta,
+        extra,
     })
 }
 
