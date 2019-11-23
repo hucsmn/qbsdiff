@@ -1,11 +1,11 @@
 mod common;
 
-use common::*;
-use std::io;
-
 extern crate quickcheck;
-#[macro_use(quickcheck)]
 extern crate quickcheck_macros;
+
+use common::*;
+use quickcheck_macros::*;
+use std::io;
 
 #[test]
 fn invert_samples() {
