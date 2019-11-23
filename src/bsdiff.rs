@@ -314,8 +314,7 @@ impl<'s, 't> SaDiff<'s, 't> {
                 // Use binary search to approximately find out a proper skip
                 // length for long suffixing similar bytes.
                 // Do linear search instead when length is not long enough.
-                let next;
-                if n > self.longsuf {
+                let next = if n <= self.longsuf { j + 1 } else {
                     let mut x = 0;
                     let mut y = n;
                     while x < y {
@@ -326,11 +325,9 @@ impl<'s, 't> SaDiff<'s, 't> {
                         } else {
                             y = z;
                         }
-                    }
-                    next = j + Ord::max(x, 1);
-                } else {
-                    next = j + 1;
-                }
+                    };
+                    j + Ord::max(x, 1)
+                };
                 let mut i = self.i0.saturating_add(j - self.j0);
                 while j < next {
                     if i < self.s.len() && self.s[i] == self.t[j] {
