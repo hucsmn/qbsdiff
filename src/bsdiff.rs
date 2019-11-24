@@ -156,10 +156,7 @@ where
         let mut spos = 0;
         let mut tpos = 0;
         let mut cbuf = [0; 24];
-        let mut dbuf = Vec::with_capacity(bsize);
-        unsafe {
-            dbuf.set_len(bsize);
-        }
+
         for ctl in diff {
             // Write control data.
             encode_int(ctl.add as i64, &mut cbuf[0..8]);
@@ -173,11 +170,12 @@ where
                 while n > 0 {
                     let k = Ord::min(n, bsize as u64) as usize;
 
-                    let dat = Iterator::zip(s[spos as usize..].iter(), t[tpos as usize..].iter());
-                    for (d, (&x, &y)) in Iterator::zip(dbuf[..k].iter_mut(), dat) {
-                        *d = y.wrapping_sub(x)
-                    }
-                    delta.write_all(&dbuf[..k])?;
+                    let dat: Vec<u8> = Iterator::zip(
+                        s[spos as usize..].iter(),
+                        t[tpos as usize..].iter()
+                    ).map(|(x, y)| y.wrapping_sub(*x)).take(k).collect();
+
+                    delta.write_all(&dat[..])?;
 
                     spos += k as u64;
                     tpos += k as u64;
