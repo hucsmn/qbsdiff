@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use super::utils::*;
 use bzip2::write::BzEncoder;
 use std::io::{Cursor, Result, Write};
