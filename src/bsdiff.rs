@@ -157,6 +157,8 @@ where
         let mut tpos = 0;
         let mut cbuf = [0; 24];
 
+        let mut dat = Vec::with_capacity(bsize);
+
         for ctl in diff {
             // Write control data.
             encode_int(ctl.add as i64, &mut cbuf[0..8]);
@@ -170,12 +172,13 @@ where
                 while n > 0 {
                     let k = Ord::min(n, bsize as u64) as usize;
 
-                    let dat: Vec<u8> = Iterator::zip(
+                    dat.extend(Iterator::zip(
                         s[spos as usize..].iter(),
                         t[tpos as usize..].iter()
-                    ).map(|(x, y)| y.wrapping_sub(*x)).take(k).collect();
+                    ).map(|(x, y)| y.wrapping_sub(*x)).take(k));
 
                     delta.write_all(&dat[..])?;
+                    dat.clear();
 
                     spos += k as u64;
                     tpos += k as u64;
