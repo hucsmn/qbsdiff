@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use super::utils::*;
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
