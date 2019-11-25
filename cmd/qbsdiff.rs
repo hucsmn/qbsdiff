@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use qbsdiff::Bsdiff;
 use std::fs::File;
 use std::io;

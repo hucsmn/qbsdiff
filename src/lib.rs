@@ -51,6 +51,7 @@ Note that `qbsdiff` would not generate exactly the same patch file as `bsdiff`.
 Only the patch file format is promised to be compatible.
 */
 
+#![forbid(unsafe_code)]
 pub mod bsdiff;
 pub mod bspatch;
 mod utils;
