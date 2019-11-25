@@ -1,6 +1,7 @@
 use super::utils::*;
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
+use std::iter;
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 16384;
@@ -169,13 +170,6 @@ where
         bsize: usize,
         dsize: usize,
     ) -> Self {
-        let mut buf = Vec::with_capacity(bsize);
-        let mut dlt = Vec::with_capacity(dsize);
-        unsafe {
-            buf.set_len(bsize);
-            dlt.set_len(dsize);
-        }
-
         Context {
             source: Cursor::new(source),
             target,
@@ -183,8 +177,8 @@ where
             delta,
             extra,
             n: 0,
-            buf,
-            dlt,
+            buf: iter::repeat(0).take(bsize).collect(),
+            dlt: iter::repeat(0).take(dsize).collect(),
             ctl: [0; 24],
             total: 0,
         }
@@ -273,10 +267,7 @@ where
     fn reserve_delta(&mut self, size: usize) {
         if size > self.dlt.len() {
             let n = size - self.dlt.len();
-            self.dlt.reserve(n);
-            unsafe {
-                self.dlt.set_len(size);
-            }
+            self.dlt.extend(iter::repeat(0).take(n));
         }
     }
 }
