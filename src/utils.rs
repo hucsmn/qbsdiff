@@ -16,7 +16,7 @@ pub fn decode_int(b: &[u8]) -> i64 {
     if x >> 63 == 0 || x == 1 << 63 {
         x as i64
     } else {
-        ((x & ((1 << 63) -1)) as i64).wrapping_neg()
+        ((x & ((1 << 63) - 1)) as i64).wrapping_neg()
     }
 }
 

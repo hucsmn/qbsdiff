@@ -2,7 +2,6 @@
 use super::utils::*;
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
-use std::iter;
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 16384;
@@ -88,13 +87,7 @@ impl<'p> Bspatch<'p> {
     ///
     /// Returns count of bytes writed to target if no error encountered.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
-        let ctx = Context::new(
-            self.patch,
-            source,
-            target,
-            self.buffer_size,
-            self.delta_min,
-        );
+        let ctx = Context::new(self.patch, source, target, self.buffer_size, self.delta_min);
         ctx.apply()
     }
 }
@@ -238,7 +231,9 @@ where
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
 
-            self.patch.extra.read_exact(&mut self.buf[self.n..self.n + k])?;
+            self.patch
+                .extra
+                .read_exact(&mut self.buf[self.n..self.n + k])?;
             self.n += k;
             if self.n >= self.buf.len() {
                 self.target.write_all(self.buf.as_ref())?;

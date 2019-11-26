@@ -173,10 +173,11 @@ where
                 while n > 0 {
                     let k = Ord::min(n, bsize as u64) as usize;
 
-                    dat.extend(Iterator::zip(
-                        s[spos as usize..].iter(),
-                        t[tpos as usize..].iter()
-                    ).map(|(x, y)| y.wrapping_sub(*x)).take(k));
+                    dat.extend(
+                        Iterator::zip(s[spos as usize..].iter(), t[tpos as usize..].iter())
+                            .map(|(x, y)| y.wrapping_sub(*x))
+                            .take(k),
+                    );
 
                     delta.write_all(&dat[..])?;
                     dat.clear();
@@ -316,7 +317,9 @@ impl<'s, 't> SaDiff<'s, 't> {
                 // Use binary search to approximately find out a proper skip
                 // length for long suffixing similar bytes.
                 // Do linear search instead when length is not long enough.
-                let next = if n <= self.longsuf { j + 1 } else {
+                let next = if n <= self.longsuf {
+                    j + 1
+                } else {
                     let mut x = 0;
                     let mut y = n;
                     while x < y {
@@ -327,7 +330,7 @@ impl<'s, 't> SaDiff<'s, 't> {
                         } else {
                             y = z;
                         }
-                    };
+                    }
                     j + Ord::max(x, 1)
                 };
                 let mut i = self.i0.saturating_add(j - self.j0);
