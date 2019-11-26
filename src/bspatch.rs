@@ -267,8 +267,7 @@ where
     /// Extend the delta cache if not large enough.
     fn reserve_delta(&mut self, size: usize) {
         if size > self.dlt.len() {
-            let n = size - self.dlt.len();
-            self.dlt.extend(iter::repeat(0).take(n));
+            self.dlt.resize(size, 0);
         }
     }
 }
