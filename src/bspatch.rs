@@ -1,6 +1,8 @@
+#![forbid(unsafe_code)]
 use super::utils::*;
 use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
+use std::iter;
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 16384;
@@ -163,20 +165,13 @@ where
         bsize: usize,
         dsize: usize,
     ) -> Self {
-        let mut buf = Vec::with_capacity(bsize);
-        let mut dlt = Vec::with_capacity(dsize);
-        unsafe {
-            buf.set_len(bsize);
-            dlt.set_len(dsize);
-        }
-
         Context {
             source: Cursor::new(source),
             target,
             patch,
             n: 0,
-            buf,
-            dlt,
+            buf: vec![0; bsize],
+            dlt: vec![0; dsize],
             ctl: [0; 24],
             total: 0,
         }
@@ -264,11 +259,7 @@ where
     /// Extend the delta cache if not large enough.
     fn reserve_delta(&mut self, size: usize) {
         if size > self.dlt.len() {
-            let n = size - self.dlt.len();
-            self.dlt.reserve(n);
-            unsafe {
-                self.dlt.set_len(size);
-            }
+            self.dlt.resize(size, 0);
         }
     }
 }
