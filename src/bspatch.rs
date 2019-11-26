@@ -178,8 +178,8 @@ where
             delta,
             extra,
             n: 0,
-            buf: iter::repeat(0).take(bsize).collect(),
-            dlt: iter::repeat(0).take(dsize).collect(),
+            buf: vec![0; bsize],
+            dlt: vec![0; dsize],
             ctl: [0; 24],
             total: 0,
         }
