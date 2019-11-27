@@ -56,7 +56,7 @@ pub struct Bsdiff<'s, 't> {
 }
 
 impl<'s, 't> Bsdiff<'s, 't> {
-    /// Prepares for delta compression and immediately sorts the suffix array.
+    /// Create new configuration for bsdiff delta compression.
     ///
     /// Panics if the length of source data is greater than MAX_LENGTH.
     pub fn new(source: &'s [u8], target: &'t [u8]) -> Self {
@@ -87,14 +87,14 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Sets the threshold to determine small match (default is `SMALL_MATCH`).
-    /// If set to zero, no matches would be treated as small match and skipped.
+    /// Set the threshold to determine small match (default is `SMALL_MATCH`).
+    /// If set to zero, no matches would be skipped.
     pub fn small_match(mut self, sm: usize) -> Self {
         self.small = sm;
         self
     }
 
-    /// Sets the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
+    /// Set the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
     #[allow(unused)]
     fn dismatch_count(mut self, mut dis: usize) -> Self {
         if dis < 1 {
@@ -104,8 +104,8 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Sets the threshold to determine long repating bytes in target data
-    /// (`lr` >= 64, default is `LONG_SUFFIX`).
+    /// Set the threshold to determine long repating bytes in target data
+    /// (`ls` >= 64, default is `LONG_SUFFIX`).
     #[allow(unused)]
     fn long_suffix(mut self, mut ls: usize) -> Self {
         if ls < 64 {
@@ -115,13 +115,13 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Sets the compression level of bzip2 (default is `LEVEL`).
+    /// Set the compression level of bzip2 (default is `LEVEL`).
     pub fn compression_level(mut self, lv: Compression) -> Self {
         self.level = lv;
         self
     }
 
-    /// Sets the buffer size for delta calculation (`bs >= 128`, default is `BUFFER_SIZE`).
+    /// Set the buffer size for delta calculation (`bs >= 128`, default is `BUFFER_SIZE`).
     pub fn buffer_size(mut self, mut bs: usize) -> Self {
         if bs < 128 {
             bs = 128;
@@ -130,16 +130,16 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Starts searching matches in target and constructing the patch file.
+    /// Start searching matches in target and constructing the patch file.
     ///
-    /// Returns the final size of bsdiff 4.x compatible patch file.
+    /// The size of patch file would be returned if no error occurs.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
         let diff = SaDiff::new(self.s, self.t, self.small, self.dismat, self.longsuf);
         pack(self.s, self.t, diff, patch, self.level, self.bsize)
     }
 }
 
-/// Constructs bsdiff 4.x patch file, returns the final size of patch.
+/// Construct bsdiff 4.x patch file from parts.
 fn pack<D, P>(s: &[u8], t: &[u8], diff: D, mut p: P, lv: Compression, bsize: usize) -> Result<u64>
 where
     D: Iterator<Item = Control>,
@@ -167,7 +167,7 @@ where
             encode_int(ctl.seek, &mut cbuf[16..24]);
             ctrls.write_all(&cbuf[..])?;
 
-            // Compute and write delta data, using limited buffer `dlt`.
+            // Compute and write delta data, using limited buffer `dat`.
             if ctl.add > 0 {
                 let mut n = ctl.add;
                 while n > 0 {

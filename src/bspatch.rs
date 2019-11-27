@@ -44,9 +44,9 @@ pub struct Bspatch<'p> {
 }
 
 impl<'p> Bspatch<'p> {
-    /// Parses given bsdiff 4.x patch.
+    /// Parse the patch file and create new patcher configuration.
     ///
-    /// Returns error if parsing failed.
+    /// Return error if failed to parse the patch header.
     pub fn new(patch: &'p [u8]) -> Result<Self> {
         Ok(Bspatch {
             patch: parse(patch)?,
@@ -55,7 +55,7 @@ impl<'p> Bspatch<'p> {
         })
     }
 
-    /// Sets the main copy buffer size, (`bs > 128`, default is `BUFFER_SIZE`).
+    /// Set the main copy buffer size, (`bs > 128`, default is `BUFFER_SIZE`).
     pub fn buffer_size(mut self, mut bs: usize) -> Self {
         if bs < 128 {
             bs = 128;
@@ -69,7 +69,7 @@ impl<'p> Bspatch<'p> {
     /// The delta cache is dynamic and can grow up when needed (but keeps not
     /// greater than the size of main copy buffer).
     ///
-    /// This may be deprecated in later versions.
+    /// This might be deprecated in later version.
     pub fn delta_min(mut self, mut dm: usize) -> Self {
         if dm < 128 {
             dm = 128;
@@ -78,14 +78,14 @@ impl<'p> Bspatch<'p> {
         self
     }
 
-    /// Hints the final target data size, as provided in the patch header.
+    /// Hint the final target file size, as provided in the patch header.
     pub fn hint_target_size(&self) -> u64 {
         self.patch.tsize
     }
 
-    /// Applies the patch to source data and outputs the target stream.
+    /// Apply patch to the source data and output the stream of target.
     ///
-    /// Returns count of bytes writed to target if no error encountered.
+    /// The target data size would be returned if no error occurs.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let ctx = Context::new(self.patch, source, target, self.buffer_size, self.delta_min);
         ctx.apply()
@@ -170,7 +170,7 @@ where
         }
     }
 
-    /// Apply the bsdiff 4.x patch file.
+    /// Apply the patch file.
     pub fn apply(mut self) -> Result<u64> {
         while let Some(result) = self.next() {
             match result {
@@ -189,7 +189,7 @@ where
         Ok(self.total)
     }
 
-    /// Reads the next control.
+    /// Read the next control.
     fn next(&mut self) -> Option<Result<Control>> {
         match read_exact_or_eof(&mut self.patch.ctrls, &mut self.ctl[..]) {
             Ok(0) => return None,
@@ -203,7 +203,7 @@ where
         Some(Ok(Control { add, copy, seek }))
     }
 
-    /// Adds delta to source and writes into the target.
+    /// Add delta to source and write the result to target.
     fn add(&mut self, mut count: u64) -> Result<()> {
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
@@ -226,7 +226,7 @@ where
         Ok(())
     }
 
-    /// Copies extra data to the target.
+    /// Copy extra data to target.
     fn copy(&mut self, mut count: u64) -> Result<()> {
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
@@ -245,7 +245,7 @@ where
         Ok(())
     }
 
-    /// Sets source cursor.
+    /// Move the cursor on source.
     fn seek(&mut self, offset: i64) -> Result<()> {
         self.source.seek(SeekFrom::Current(offset))?;
         Ok(())
@@ -259,7 +259,7 @@ where
     }
 }
 
-// Reads exact buf.len() bytes or reads an EOF, returns size of data readed.
+// Read exact buf.len() bytes or reads an EOF, return the count of bytes readed.
 #[inline]
 fn read_exact_or_eof<R>(r: &mut R, buf: &mut [u8]) -> Result<usize>
 where
