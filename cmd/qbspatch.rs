@@ -3,6 +3,7 @@ use qbsdiff::Bspatch;
 use std::fs;
 use std::io;
 use std::io::prelude::*;
+use std::process;
 use std::str::FromStr;
 
 #[macro_use]
@@ -36,9 +37,13 @@ fn main() {
         Ok(app) => {
             if let Err(e) = app.execute() {
                 eprintln!("error: {}", e);
+                process::exit(1);
             }
         }
-        Err(e) => eprintln!("error: {}", e),
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
     }
 }
 
@@ -56,11 +61,7 @@ impl BspatchApp {
         target_name: &str,
         patch_name: &str,
     ) -> io::Result<Self> {
-        let bsize;
-        match usize::from_str(bsize_expr) {
-            Ok(n) => bsize = n,
-            Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
-        }
+        let bsize = parse_usize(bsize_expr)?;
 
         let mut source;
         if source_name == "-" {
@@ -94,5 +95,12 @@ impl BspatchApp {
             .buffer_size(self.bsize)
             .apply(&self.source[..], self.target)?;
         Ok(())
+    }
+}
+
+fn parse_usize(expr: &str) -> io::Result<usize> {
+    match usize::from_str(expr) {
+        Ok(n) => Ok(n),
+        Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
     }
 }

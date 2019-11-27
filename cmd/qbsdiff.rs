@@ -3,6 +3,7 @@ use qbsdiff::Bsdiff;
 use std::fs;
 use std::io;
 use std::io::prelude::*;
+use std::process;
 use std::str::FromStr;
 
 #[macro_use]
@@ -40,9 +41,13 @@ fn main() {
         Ok(app) => {
             if let Err(e) = app.execute() {
                 eprintln!("error: {}", e);
+                process::exit(1);
             }
         }
-        Err(e) => eprintln!("error: {}", e),
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
     }
 }
 
