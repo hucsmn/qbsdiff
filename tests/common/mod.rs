@@ -4,7 +4,6 @@ use chrono::Utc;
 use qbsdiff::{Bsdiff, Bspatch};
 use rand::random;
 use std::fs;
-use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path;
@@ -26,7 +25,7 @@ pub fn bsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
         return Err(io::Error::new(io::ErrorKind::Other, "execution failed"));
     }
 
-    fetch_file(ppath)
+    fs::read(ppath)
 }
 
 pub fn qbsdiff(s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
@@ -51,7 +50,7 @@ pub fn bspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
         return Err(io::Error::new(io::ErrorKind::Other, "execution failed"));
     }
 
-    fetch_file(tpath)
+    fs::read(tpath)
 }
 
 pub fn qbspatch(s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
@@ -85,30 +84,8 @@ pub fn create_temp<B: AsRef<[u8]>>(bytes: B) -> io::Result<path::PathBuf> {
     let id = format!("{}-{:x}", Utc::now().format("%s.%f"), random::<u32>());
     let p = dir.join(id);
 
-    store_file(p.as_path(), bytes)?;
+    fs::write(p.as_path(), bytes)?;
     Ok(p)
-}
-
-pub fn fetch_file<P: AsRef<path::Path>>(name: P) -> io::Result<Vec<u8>> {
-    let mut file = File::open(name)?;
-    let size = file.seek(io::SeekFrom::End(0))?;
-    if size > std::usize::MAX as u64 {
-        return Err(io::Error::new(io::ErrorKind::Other, "file too large"));
-    }
-
-    let mut data = Vec::with_capacity(size as usize);
-    file.seek(io::SeekFrom::Start(0))?;
-    file.read_to_end(&mut data)?;
-    Ok(data)
-}
-
-pub fn store_file<P, B>(name: P, bytes: B) -> io::Result<()>
-where
-    P: AsRef<path::Path>,
-    B: AsRef<[u8]>,
-{
-    let mut file = File::create(name.as_ref())?;
-    file.write_all(bytes.as_ref())
 }
 
 pub fn exists_file<P: AsRef<path::Path>>(name: P) -> bool {

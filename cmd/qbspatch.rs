@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 use qbsdiff::Bspatch;
-use std::fs::File;
+use std::fs;
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
@@ -62,22 +62,24 @@ impl BspatchApp {
             Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
         }
 
-        let mut source = Vec::new();
+        let mut source;
         if source_name == "-" {
+            source = Vec::new();
             io::stdin().read_to_end(&mut source)?;
         } else {
-            File::open(source_name)?.read_to_end(&mut source)?;
+            source = fs::read(source_name)?;
         }
+        source.shrink_to_fit();
 
         let target: Box<dyn Write>;
         if target_name == "-" {
             target = Box::new(io::stdout());
         } else {
-            target = Box::new(File::create(target_name)?);
+            target = Box::new(fs::File::create(target_name)?);
         }
 
-        let mut patch = Vec::new();
-        File::open(patch_name)?.read_to_end(&mut patch)?;
+        let mut patch = fs::read(patch_name)?;
+        patch.shrink_to_fit();
 
         Ok(BspatchApp {
             source,

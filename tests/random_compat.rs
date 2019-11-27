@@ -11,10 +11,10 @@ use std::path;
 fn random_qbsdiff_bspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        let s = fetch_file(sample.source.as_path()).unwrap();
+        let s = fs::read(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
             eprintln!("qbsdiff/bspatch `{}`/`{}`", sample.name, i);
-            let t = fetch_file(target.as_path()).unwrap();
+            let t = fs::read(target.as_path()).unwrap();
             let p = qbsdiff(&s[..], &t[..]).unwrap();
             let t1 = bspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
@@ -28,10 +28,10 @@ fn random_qbsdiff_bspatch_compat() {
 fn random_bsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        let s = fetch_file(sample.source.as_path()).unwrap();
+        let s = fs::read(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
             eprintln!("bsdiff/qbspatch `{}`/`{}`", sample.name, i);
-            let t = fetch_file(target.as_path()).unwrap();
+            let t = fs::read(target.as_path()).unwrap();
             let p = bsdiff(&s[..], &t[..]).unwrap();
             let t1 = qbspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
@@ -45,10 +45,10 @@ fn random_bsdiff_qbspatch_compat() {
 fn random_qbsdiff_qbspatch_compat() {
     let samples = list_samples().unwrap();
     for sample in samples.iter() {
-        let s = fetch_file(sample.source.as_path()).unwrap();
+        let s = fs::read(sample.source.as_path()).unwrap();
         for (i, target) in sample.targets.iter().enumerate() {
             eprintln!("qbsdiff/qbspatch `{}`/`{}`", sample.name, i);
-            let t = fetch_file(target.as_path()).unwrap();
+            let t = fs::read(target.as_path()).unwrap();
             let p = qbsdiff(&s[..], &t[..]).unwrap();
             let t1 = qbspatch(&s[..], &p[..]).unwrap();
             if t != t1 {
@@ -166,9 +166,9 @@ fn make_samples(descs: &[SampleDesc]) -> io::Result<Vec<Sample>> {
                     source_bytes = random_bytes(size);
                 }
             }
-            store_file(source.as_path(), &source_bytes[..])?;
+            fs::write(source.as_path(), &source_bytes[..])?;
         } else {
-            source_bytes = fetch_file(source.as_path())?;
+            source_bytes = fs::read(source.as_path())?;
         }
 
         let mut targets = Vec::with_capacity(desc.targets.len());
@@ -177,11 +177,11 @@ fn make_samples(descs: &[SampleDesc]) -> io::Result<Vec<Sample>> {
             if !exists_file(target.as_path()) {
                 match tdesc {
                     TargetDesc::Bytes(bytes) => {
-                        store_file(target.as_path(), bytes)?;
+                        fs::write(target.as_path(), bytes)?;
                     }
                     TargetDesc::Distort(similar) => {
                         let target_bytes = distort(&source_bytes[..], *similar);
-                        store_file(target.as_path(), target_bytes)?;
+                        fs::write(target.as_path(), target_bytes)?;
                     }
                 }
             }

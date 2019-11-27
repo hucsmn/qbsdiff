@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 use qbsdiff::Bsdiff;
-use std::fs::File;
+use std::fs;
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
@@ -72,25 +72,29 @@ impl BsdiffApp {
             ));
         }
 
-        let mut source = Vec::new();
+        let mut source;
         if source_name == "-" {
+            source = Vec::new();
             io::stdin().read_to_end(&mut source)?;
         } else {
-            File::open(source_name)?.read_to_end(&mut source)?;
+            source = fs::read(source_name)?;
         }
+        source.shrink_to_fit();
 
-        let mut target = Vec::new();
+        let mut target;
         if target_name == "-" {
+            target = Vec::new();
             io::stdin().read_to_end(&mut target)?;
         } else {
-            File::open(target_name)?.read_to_end(&mut target)?;
+            target = fs::read(target_name)?;
         }
+        target.shrink_to_fit();
 
         let patch: Box<dyn Write>;
         if patch_name == "-" {
             patch = Box::new(io::stdout());
         } else {
-            patch = Box::new(File::create(patch_name)?);
+            patch = Box::new(fs::File::create(patch_name)?);
         }
 
         Ok(BsdiffApp {
