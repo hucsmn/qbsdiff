@@ -200,6 +200,9 @@ where
         delta.flush()?;
         extra.flush()?;
     }
+    bz_ctrls.shrink_to_fit();
+    bz_delta.shrink_to_fit();
+    bz_extra.shrink_to_fit();
 
     // Write header (b"BSDIFF40", control size, delta size, target size).
     let mut header = [0; 32];

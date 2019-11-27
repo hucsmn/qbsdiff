@@ -92,6 +92,7 @@ impl<'p> Bspatch<'p> {
     }
 }
 
+/// Patch file content.
 struct PatchFile<'a> {
     tsize: u64,
     ctrls: BzDecoder<Cursor<&'a [u8]>>,
@@ -129,10 +130,7 @@ fn parse(patch: &[u8]) -> Result<PatchFile> {
 }
 
 /// Bspatch context.
-struct Context<'s, 'p, T>
-where
-    T: Write,
-{
+struct Context<'s, 'p, T: Write> {
     source: Cursor<&'s [u8]>,
     target: T,
 
@@ -146,10 +144,7 @@ where
     total: u64,
 }
 
-impl<'s, 'p, T> Context<'s, 'p, T>
-where
-    T: Write,
-{
+impl<'s, 'p, T: Write> Context<'s, 'p, T> {
     /// Create context.
     pub fn new(
         patch: PatchFile<'p>,
@@ -208,18 +203,24 @@ where
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
 
-            self.source.read_exact(&mut self.buf[self.n..self.n + k])?;
-            self.reserve_delta(k);
-            self.patch.delta.read_exact(&mut self.dlt[..k])?;
-            for i in 0..k {
-                let j = self.n + i;
-                self.buf[j] = self.buf[j].wrapping_add(self.dlt[i]);
+            if k > self.dlt.len() {
+                self.dlt.resize(k, 0);
             }
+
+            self.source.read_exact(&mut self.buf[self.n..self.n + k])?;
+            self.patch.delta.read_exact(&mut self.dlt[..k])?;
+            Iterator::zip(
+                self.buf[self.n..self.n + k].iter_mut(),
+                self.dlt[..k].iter(),
+            )
+            .for_each(|(x, y)| *x = x.wrapping_add(*y));
+
             self.n += k;
             if self.n >= self.buf.len() {
                 self.target.write_all(self.buf.as_ref())?;
                 self.n = 0;
             }
+
             self.total += k as u64;
             count -= k as u64;
         }
@@ -234,11 +235,13 @@ where
             self.patch
                 .extra
                 .read_exact(&mut self.buf[self.n..self.n + k])?;
+
             self.n += k;
             if self.n >= self.buf.len() {
                 self.target.write_all(self.buf.as_ref())?;
                 self.n = 0;
             }
+
             self.total += k as u64;
             count -= k as u64;
         }
@@ -247,24 +250,15 @@ where
 
     /// Move the cursor on source.
     fn seek(&mut self, offset: i64) -> Result<()> {
-        self.source.seek(SeekFrom::Current(offset))?;
-        Ok(())
-    }
-
-    /// Extend the delta cache if not large enough.
-    fn reserve_delta(&mut self, size: usize) {
-        if size > self.dlt.len() {
-            self.dlt.resize(size, 0);
-        }
+        self.source
+            .seek(SeekFrom::Current(offset))
+            .map(std::mem::drop)
     }
 }
 
 // Read exact buf.len() bytes or reads an EOF, return the count of bytes readed.
 #[inline]
-fn read_exact_or_eof<R>(r: &mut R, buf: &mut [u8]) -> Result<usize>
-where
-    R: Read,
-{
+fn read_exact_or_eof<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
     let mut cnt = 0;
     while cnt < buf.len() {
         match r.read(&mut buf[cnt..]) {
