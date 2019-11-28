@@ -17,10 +17,7 @@ suffix_array = { version = "0.4", default-features = false, features = ["paralle
 clap = { optional = true, version = "2.33" }
 
 [dev-dependencies]
-globwalk = "0.7"
-subprocess = "0.1"
-rand = "0.7"
-chrono = "0.4"
+utils = { path = "utils" }
 
 [features]
 default = []
@@ -35,11 +32,3 @@ required-features = ["cmd"]
 name = "qbspatch"
 path = "cmd/qbspatch.rs"
 required-features = ["cmd"]
-
-[[test]]
-name = "sample_compat"
-path = "tests/sample_compat.rs"
-
-[[test]]
-name = "random_compat"
-path = "tests/random_compat.rs"

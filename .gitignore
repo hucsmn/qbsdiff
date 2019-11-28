@@ -1,4 +1,5 @@
 /target
-/tests/random-caches
+/utils/target
+/assets/caches
 Cargo.lock
 **/*.rs.bk

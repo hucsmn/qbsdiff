@@ -1,0 +1,13 @@
+[package]
+name = "utils"
+version = "0.1.0"
+authors = ["hucsmn <hucsmn@hotmail.com>"]
+edition = "2018"
+description = "internal utilities for tests and benchmarks"
+
+[dependencies]
+qbsdiff = { path = ".." }
+globwalk = "0.7"
+subprocess = "0.1"
+rand = "0.7"
+chrono = "0.4"
