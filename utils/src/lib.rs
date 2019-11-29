@@ -1,11 +1,8 @@
-#![allow(unused)]
-
 use chrono::Utc;
 use qbsdiff::{Bsdiff, Bspatch};
 use rand::random;
 use std::fs;
 use std::io;
-use std::io::prelude::*;
 use std::path;
 use globwalk::glob;
 use subprocess::Exec;
@@ -48,19 +45,6 @@ impl Testing {
         let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
         patcher.apply(s, io::Cursor::new(&mut t))?;
         Ok(t)
-    }
-
-    #[cfg(windows)]
-    fn get_binary(&self, name: &'static str) -> io::Result<path::PathBuf> {
-        Ok(self.assets_dir.join("bin").join(format!("{}.exe", name)))
-    }
-
-    #[cfg(unix)]
-    fn get_binary(&self, name: &'static str) -> io::Result<path::PathBuf> {
-        use std::os::unix::fs::PermissionsExt;
-        let bin = self.assets_dir.join("bin").join(name);
-        fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
-        Ok(bin)
     }
 
     /// Get regular samples.
