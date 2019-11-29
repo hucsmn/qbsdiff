@@ -6,7 +6,7 @@ edition = "2018"
 description = "internal utilities for tests and benchmarks"
 
 [dependencies]
-qbsdiff = { path = ".." }
+qbsdiff = { version ="*", path = ".." }
 globwalk = "0.7"
 subprocess = "0.1"
 rand = "0.7"
