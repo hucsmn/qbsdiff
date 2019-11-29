@@ -25,42 +25,14 @@ impl Testing {
 
     /// Execute bsdiff command.
     pub fn bsdiff(&self, s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
-        let bin = self.get_binary("bsdiff")?;
-
-        let spath = create_temp(s)?;
-        let tpath = create_temp(t)?;
-        let ppath = create_temp(b"")?;
-        let succ = Exec::cmd(bin)
-            .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
-            .capture()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-            .exit_status
-            .success();
-        if !succ {
-            return Err(io::Error::new(io::ErrorKind::Other, "execution failed"));
-        }
-
-        fs::read(ppath)
+        let dir = self.assets_dir.join("bin");
+        run_bsdiff_in(dir, s, t)
     }
 
     /// Execute bspatch command.
     pub fn bspatch(&self, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
-        let bin = self.get_binary("bspatch")?;
-
-        let spath = create_temp(s)?;
-        let tpath = create_temp(b"")?;
-        let ppath = create_temp(p)?;
-        let succ = Exec::cmd(bin)
-            .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
-            .capture()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-            .exit_status
-            .success();
-        if !succ {
-            return Err(io::Error::new(io::ErrorKind::Other, "execution failed"));
-        }
-
-        fs::read(tpath)
+        let dir = self.assets_dir.join("bin");
+        run_bspatch_in(dir, s, p)
     }
 
     /// Perform qbsdiff.
@@ -91,181 +63,173 @@ impl Testing {
         Ok(bin)
     }
 
-    /// Get samples.
-    pub fn get_samples(&self) -> io::Result<Vec<Sample>> {
-        let data_dir = self.assets_dir.join("samples");
-
-        let mut samples = Vec::new();
-        let pat = data_dir.join("*.s");
-        let walker;
-        if let Some(p) = pat.to_str() {
-            walker = glob(p).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "cannot convert to str",
-            ));
-        }
-        for result in walker.into_iter() {
-            let source = result
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-                .into_path();
-
-            let name;
-            let target;
-            if let (Some(d), Some(n)) = (source.parent(), source.file_stem()) {
-                let mut nbuf = n.to_owned();
-                name = nbuf.to_string_lossy().into_owned();
-                nbuf.push(".t");
-                target = path::PathBuf::from(d).join(nbuf.as_os_str());
-            } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "cannot make target path",
-                ));
-            }
-            if let Err(_) = fs::metadata(target.as_path()) {
-                continue;
-            }
-
-            samples.push(Sample {
-                name,
-                source,
-                target,
-            });
-        }
-
-        Ok(samples)
+    /// Get regular samples.
+    pub fn get_regular_samples(&self) -> io::Result<Vec<Sample>> {
+        let dir = self.assets_dir.join("samples");
+        get_samples_in(dir)
     }
 
     /// Prepare random samples if needed and get the sample list.
     pub fn get_random_samples(&self, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
         let dir = self.assets_dir.join("caches").join("random-samples");
-        fs::create_dir_all(dir.as_path())?;
-
-        let mut samples = Vec::new();
-        for desc in descs.iter() {
-            let source = dir.join(format!("{}.s", desc.name));
-            let source_bytes;
-            if !exists_file(source.as_path()) {
-                match desc.source {
-                    RandomSource::Bytes(bytes) => {
-                        source_bytes = Vec::from(bytes);
-                    }
-                    RandomSource::Random(size) => {
-                        source_bytes = random_bytes(size);
-                    }
-                }
-                fs::write(source.as_path(), &source_bytes[..])?;
-            } else {
-                source_bytes = fs::read(source.as_path())?;
-            }
-
-            for (i, tdesc) in desc.targets.iter().enumerate() {
-                let target = dir.join(format!("{}.t{}", desc.name, i));
-                if !exists_file(target.as_path()) {
-                    match tdesc {
-                        RandomTarget::Bytes(bytes) => {
-                            fs::write(target.as_path(), bytes)?;
-                        }
-                        RandomTarget::Distort(similar) => {
-                            let target_bytes = distort(&source_bytes[..], *similar);
-                            fs::write(target.as_path(), target_bytes)?;
-                        }
-                    }
-                }
-                samples.push(Sample {
-                    name: format!("{}/{}", desc.name, i),
-                    source: source.clone(),
-                    target,
-                });
-            }
-        }
-
-        Ok(samples)
-    }
-
-    /// Default random sample descriptions.
-    pub fn default_random_samples(&self) -> Vec<RandomSample> {
-        use RandomSource::{Bytes as SBytes, Random};
-        use RandomTarget::{Bytes as TBytes, Distort};
-        vec![
-            RandomSample {
-                name: "empty",
-                source: SBytes(b""),
-                targets: vec![TBytes(b""), TBytes(b"extra")],
-            },
-            RandomSample {
-                name: "small",
-                source: SBytes(
-b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempo\
-r incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis no\
-strud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Dui\
-s aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fu\
-giat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in cu\
-lpa qui officia deserunt mollit anim id est laborum."
-                ),
-                targets: vec![
-                    TBytes(b""),
-                    TBytes(
-b"consectetur adip##cing elit, jed do eiusmod wir mussen wissen. wir werden wis\
-sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. "
-                    ),
-                    TBytes(b"the quick brown fox jumps over the lazy dog"),
-                    Distort(0.0),
-                    Distort(0.5),
-                    Distort(1.0),
-                ],
-            },
-            RandomSample {
-                name: "rand-4k",
-                source: Random(4096),
-                targets: vec![
-                    TBytes(b""),
-                    Distort(0.0),
-                    Distort(0.5),
-                    Distort(1.0),
-                ],
-            },
-            RandomSample {
-                name: "rand-256k",
-                source: Random(256*1024),
-                targets: vec![
-                    TBytes(b""),
-                    Distort(0.0),
-                    Distort(0.5),
-                    Distort(1.0),
-                ],
-            },
-            RandomSample {
-                name: "rand-1m",
-                source: Random(1024*1024),
-                targets: vec![
-                    TBytes(b""),
-                    Distort(0.0),
-                    Distort(0.5),
-                    Distort(1.0),
-                ],
-            },
-            RandomSample {
-                name: "rand-8m",
-                source: Random(8*1024*1024),
-                targets: vec![
-                    TBytes(b""),
-                    Distort(0.0),
-                    Distort(0.5),
-                    Distort(1.0),
-                ],
-            },
-        ]
+        get_random_caches_in(dir, descs)
     }
 }
 
-/// Sample.
+fn run_bsdiff_in<P: AsRef<path::Path>>(dir: P, s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
+    let bin = get_binary_in(dir, "bsdiff")?;
+
+    let spath = create_temp(s)?;
+    let tpath = create_temp(t)?;
+    let ppath = create_temp(b"")?;
+    let succ = Exec::cmd(bin)
+        .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
+        .capture()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+        .exit_status
+        .success();
+    if !succ {
+        return Err(io::Error::new(io::ErrorKind::Other, "bsdiff execution failed"));
+    }
+
+    fs::read(ppath)
+}
+
+fn run_bspatch_in<P: AsRef<path::Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
+    let bin = get_binary_in(dir, "bspatch")?;
+
+    let spath = create_temp(s)?;
+    let tpath = create_temp(b"")?;
+    let ppath = create_temp(p)?;
+    let succ = Exec::cmd(bin)
+        .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
+        .capture()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+        .exit_status
+        .success();
+    if !succ {
+        return Err(io::Error::new(io::ErrorKind::Other, "bspatch execution failed"));
+    }
+
+    fs::read(tpath)
+}
+
+#[cfg(windows)]
+fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &'static str) -> io::Result<path::PathBuf> {
+    Ok(dir.as_ref().join(format!("{}.exe", name)))
+}
+
+#[cfg(unix)]
+fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &'static str) -> io::Result<path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let bin = dir.as_ref().join(name);
+    fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
+    Ok(bin)
+}
+
+/// Test sample.
 pub struct Sample {
     pub name: String,
     pub source: path::PathBuf,
     pub target: path::PathBuf,
+}
+
+impl Sample {
+    /// Load sample data.
+    pub fn load(&self) -> io::Result<(Vec<u8>, Vec<u8>)> {
+        let s = fs::read(self.source.as_path())?;
+        let t = fs::read(self.target.as_path())?;
+        Ok((s, t))
+    }
+}
+
+fn get_samples_in<P: AsRef<path::Path>>(dir: P) -> io::Result<Vec<Sample>> {
+    let mut samples = Vec::new();
+    let pat = dir.as_ref().join("*.s");
+    let walker;
+    if let Some(p) = pat.to_str() {
+        walker = glob(p).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "cannot convert to str",
+        ));
+    }
+    for result in walker.into_iter() {
+        let source = result
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
+            .into_path();
+
+        let name;
+        let target;
+        if let (Some(d), Some(n)) = (source.parent(), source.file_stem()) {
+            let mut nbuf = n.to_owned();
+            name = nbuf.to_string_lossy().into_owned();
+            nbuf.push(".t");
+            target = path::PathBuf::from(d).join(nbuf.as_os_str());
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "cannot make target path",
+            ));
+        }
+        if let Err(_) = fs::metadata(target.as_path()) {
+            continue;
+        }
+
+        samples.push(Sample {
+            name,
+            source,
+            target,
+        });
+    }
+
+    Ok(samples)
+}
+
+fn get_random_caches_in<P: AsRef<path::Path>>(dir: P, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
+    fs::create_dir_all(dir.as_ref())?;
+
+    let mut samples = Vec::new();
+    for desc in descs.iter() {
+        let source = dir.as_ref().join(format!("{}.s", desc.name));
+        let source_bytes;
+        if !exists_file(source.as_path()) {
+            match desc.source {
+                RandomSource::Bytes(bytes) => {
+                    source_bytes = Vec::from(bytes);
+                }
+                RandomSource::Random(size) => {
+                    source_bytes = random_bytes(size);
+                }
+            }
+            fs::write(source.as_path(), &source_bytes[..])?;
+        } else {
+            source_bytes = fs::read(source.as_path())?;
+        }
+
+        for (i, tdesc) in desc.targets.iter().enumerate() {
+            let target = dir.as_ref().join(format!("{}.t{}", desc.name, i));
+            if !exists_file(target.as_path()) {
+                match tdesc {
+                    RandomTarget::Bytes(bytes) => {
+                        fs::write(target.as_path(), bytes)?;
+                    }
+                    RandomTarget::Distort(similar) => {
+                        let target_bytes = distort(&source_bytes[..], *similar);
+                        fs::write(target.as_path(), target_bytes)?;
+                    }
+                }
+            }
+            samples.push(Sample {
+                name: format!("{}/{}", desc.name, i),
+                source: source.clone(),
+                target,
+            });
+        }
+    }
+
+    Ok(samples)
 }
 
 /// Description of the random sample.
@@ -285,6 +249,82 @@ pub enum RandomSource {
 pub enum RandomTarget {
     Bytes(&'static [u8]),
     Distort(f64),
+}
+
+/// Default random sample descriptions.
+pub fn default_random_samples() -> Vec<RandomSample> {
+    use RandomSource::{Bytes as SBytes, Random};
+    use RandomTarget::{Bytes as TBytes, Distort};
+
+    vec![
+        RandomSample {
+            name: "empty",
+            source: SBytes(b""),
+            targets: vec![TBytes(b""), TBytes(b"extra")],
+        },
+        RandomSample {
+            name: "small",
+            source: SBytes(
+b"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempo\
+r incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis no\
+strud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Dui\
+s aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fu\
+giat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in cu\
+lpa qui officia deserunt mollit anim id est laborum."
+            ),
+            targets: vec![
+                TBytes(b""),
+                TBytes(
+b"consectetur adip##cing elit, jed do eiusmod wir mussen wissen. wir werden wis\
+sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. "
+                ),
+                TBytes(b"the quick brown fox jumps over the lazy dog"),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-4k",
+            source: Random(4096),
+            targets: vec![
+                TBytes(b""),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-256k",
+            source: Random(256*1024),
+            targets: vec![
+                TBytes(b""),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-1m",
+            source: Random(1024*1024),
+            targets: vec![
+                TBytes(b""),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-8m",
+            source: Random(8*1024*1024),
+            targets: vec![
+                TBytes(b""),
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+    ]
 }
 
 fn random_bytes(n: usize) -> Vec<u8> {
