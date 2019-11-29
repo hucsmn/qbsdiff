@@ -69,6 +69,12 @@ impl Testing {
         get_samples_in(dir)
     }
 
+    /// Get pathological samples.
+    pub fn get_pathological_samples(&self) -> io::Result<Vec<Sample>> {
+        let dir = self.assets_dir.join("pathological");
+        get_samples_in(dir)
+    }
+
     /// Prepare random samples if needed and get the sample list.
     pub fn get_random_samples(&self, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
         let dir = self.assets_dir.join("caches").join("random-samples");

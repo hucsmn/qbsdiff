@@ -2,7 +2,7 @@ use std::path;
 use utils::*;
 
 #[test]
-fn sample_compat() {
+fn regular_samples_compat() {
     let assets = path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
     let testing = Testing::new(assets);
     let samples = testing.get_regular_samples().unwrap();
@@ -25,8 +25,11 @@ fn sample_compat() {
     }
 }
 
+// Original bsdiff(1) runs extremely slow on some pathological samples.
+// Therefore, we simply do not test compatibility on those samples here.
+
 #[test]
-fn random_compat() {
+fn random_samples_compat() {
     let assets = path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
     let descs = default_random_samples();
     let testing = Testing::new(assets);
