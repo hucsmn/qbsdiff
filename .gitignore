@@ -1,5 +1,6 @@
 /target
 /utils/target
-/assets/caches
+/assets/random
+/assets/*/*.p
 Cargo.lock
 **/*.rs.bk

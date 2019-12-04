@@ -3,9 +3,10 @@ use qbsdiff::{Bsdiff, Bspatch};
 use rand::random;
 use std::fs;
 use std::io;
+use std::ffi::OsStr;
+use std::process;
 use std::path;
 use globwalk::glob;
-use subprocess::Exec;
 use rand::distributions::uniform::{SampleUniform, Uniform};
 use rand::prelude::*;
 
@@ -61,56 +62,75 @@ impl Testing {
 
     /// Prepare random samples if needed and get the sample list.
     pub fn get_random_samples(&self, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
-        let dir = self.assets_dir.join("caches").join("random-samples");
+        let dir = self.assets_dir.join("random");
         get_random_caches_in(dir, descs)
+    }
+
+    /// Run bsdiff to generate patch if cache does not exist then get the cache.
+    pub fn get_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
+        if fs::metadata(sample.patch.as_path()).is_err() {
+            let dir = self.assets_dir.join("bin");
+            run_command_in(
+                dir,
+                "bsdiff",
+                &[sample.source.as_os_str(), sample.target.as_os_str(), sample.patch.as_os_str()],
+            )?;
+        }
+        fs::read(sample.patch.as_path())
     }
 }
 
 fn run_bsdiff_in<P: AsRef<path::Path>>(dir: P, s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
-    let bin = get_binary_in(dir, "bsdiff")?;
-
     let spath = create_temp(s)?;
     let tpath = create_temp(t)?;
     let ppath = create_temp(b"")?;
-    let succ = Exec::cmd(bin)
-        .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
-        .capture()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-        .exit_status
-        .success();
-    if !succ {
-        return Err(io::Error::new(io::ErrorKind::Other, "bsdiff execution failed"));
-    }
-
+    run_command_in(
+        dir,
+        "bsdiff",
+        &[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()],
+    )?;
     fs::read(ppath)
 }
 
 fn run_bspatch_in<P: AsRef<path::Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
-    let bin = get_binary_in(dir, "bspatch")?;
-
     let spath = create_temp(s)?;
     let tpath = create_temp(b"")?;
     let ppath = create_temp(p)?;
-    let succ = Exec::cmd(bin)
-        .args(&[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()])
-        .capture()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-        .exit_status
-        .success();
-    if !succ {
-        return Err(io::Error::new(io::ErrorKind::Other, "bspatch execution failed"));
-    }
-
+    run_command_in(
+        dir,
+        "bspatch",
+        &[spath.as_os_str(), tpath.as_os_str(), ppath.as_os_str()],
+    )?;
     fs::read(tpath)
 }
 
+fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
+where
+    P: AsRef<path::Path>,
+    S: AsRef<OsStr>,
+{
+    let bin = get_binary_in(dir, cmd)?;
+    let success = process::Command::new(bin)
+        .args(args)
+        .stdout(process::Stdio::null())
+        .stderr(process::Stdio::null())
+        .spawn()?
+        .wait()?
+        .success();
+    if !success {
+        return Err(io::Error::new(io::ErrorKind::Other, "command execution failed"));
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(windows)]
-fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &'static str) -> io::Result<path::PathBuf> {
+fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
     Ok(dir.as_ref().join(format!("{}.exe", name)))
 }
 
 #[cfg(unix)]
-fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &'static str) -> io::Result<path::PathBuf> {
+fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     let bin = dir.as_ref().join(name);
     fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
@@ -122,14 +142,16 @@ pub struct Sample {
     pub name: String,
     pub source: path::PathBuf,
     pub target: path::PathBuf,
+    pub patch: path::PathBuf,
 }
 
 impl Sample {
-    /// Load sample data.
-    pub fn load(&self) -> io::Result<(Vec<u8>, Vec<u8>)> {
-        let s = fs::read(self.source.as_path())?;
-        let t = fs::read(self.target.as_path())?;
-        Ok((s, t))
+    /// Load source and target.
+    pub fn load_source_target(&self) -> io::Result<(Vec<u8>, Vec<u8>)> {
+        Ok((
+            fs::read(self.source.as_path())?,
+            fs::read(self.target.as_path())?,
+        ))
     }
 }
 
@@ -152,17 +174,25 @@ fn get_samples_in<P: AsRef<path::Path>>(dir: P) -> io::Result<Vec<Sample>> {
 
         let name;
         let target;
+        let patch;
         if let (Some(d), Some(n)) = (source.parent(), source.file_stem()) {
-            let mut nbuf = n.to_owned();
+            let nbuf = n.to_owned();
             name = nbuf.to_string_lossy().into_owned();
-            nbuf.push(".t");
-            target = path::PathBuf::from(d).join(nbuf.as_os_str());
+
+            let mut tbuf = nbuf.clone();
+            tbuf.push(".t");
+            target = path::PathBuf::from(d).join(tbuf.as_os_str());
+
+            let mut pbuf = nbuf.clone();
+            pbuf.push(".p");
+            patch = path::PathBuf::from(d).join(pbuf.as_os_str());
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "cannot make target path",
+                "cannot make target or patch path",
             ));
         }
+        
         if let Err(_) = fs::metadata(target.as_path()) {
             continue;
         }
@@ -171,6 +201,7 @@ fn get_samples_in<P: AsRef<path::Path>>(dir: P) -> io::Result<Vec<Sample>> {
             name,
             source,
             target,
+            patch,
         });
     }
 
@@ -183,38 +214,37 @@ fn get_random_caches_in<P: AsRef<path::Path>>(dir: P, descs: &[RandomSample]) ->
     let mut samples = Vec::new();
     for desc in descs.iter() {
         let source = dir.as_ref().join(format!("{}.s", desc.name));
-        let source_bytes;
+        let sdata;
         if !exists_file(source.as_path()) {
             match desc.source {
                 RandomSource::Bytes(bytes) => {
-                    source_bytes = Vec::from(bytes);
+                    sdata = Vec::from(bytes);
                 }
                 RandomSource::Random(size) => {
-                    source_bytes = random_bytes(size);
+                    sdata = random_bytes(size);
                 }
             }
-            fs::write(source.as_path(), &source_bytes[..])?;
+            fs::write(source.as_path(), &sdata[..])?;
         } else {
-            source_bytes = fs::read(source.as_path())?;
+            sdata = fs::read(source.as_path())?;
         }
 
-        for (i, tdesc) in desc.targets.iter().enumerate() {
-            let target = dir.as_ref().join(format!("{}.t{}", desc.name, i));
+        for (id, tdesc) in desc.targets.iter().enumerate() {
+            let target = dir.as_ref().join(format!("{}.{}.t", desc.name, tdesc.name(id)));
             if !exists_file(target.as_path()) {
                 match tdesc {
-                    RandomTarget::Bytes(bytes) => {
-                        fs::write(target.as_path(), bytes)?;
-                    }
-                    RandomTarget::Distort(similar) => {
-                        let target_bytes = distort(&source_bytes[..], *similar);
-                        fs::write(target.as_path(), target_bytes)?;
-                    }
+                    RandomTarget::Bytes(bytes) => 
+                        fs::write(target.as_path(), bytes)?,
+                    RandomTarget::Distort(rate) =>
+                        fs::write(target.as_path(), &distort(&sdata[..], *rate)[..])?,
                 }
             }
+            let patch = dir.as_ref().join(format!("{}.{}.p", desc.name, tdesc.name(id)));
             samples.push(Sample {
-                name: format!("{}/{}", desc.name, i),
+                name: format!("{}/{}", desc.name, tdesc.name(id)),
                 source: source.clone(),
                 target,
+                patch,
             });
         }
     }
@@ -239,6 +269,15 @@ pub enum RandomSource {
 pub enum RandomTarget {
     Bytes(&'static [u8]),
     Distort(f64),
+}
+
+impl RandomTarget {
+    fn name(&self, id: usize) -> String {
+        match self {
+            RandomTarget::Bytes(bytes) => format!("{}#bin{}", id, bytes.len()),
+            RandomTarget::Distort(rate) => format!("{}#sim{}", id, (rate * 100.0) as u32),
+        }
+    }
 }
 
 /// Default random sample descriptions.

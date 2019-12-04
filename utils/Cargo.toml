@@ -8,6 +8,5 @@ description = "internal utilities for tests and benchmarks"
 [dependencies]
 qbsdiff = { version ="*", path = ".." }
 globwalk = "0.7"
-subprocess = "0.1"
 rand = "0.7"
 chrono = "0.4"

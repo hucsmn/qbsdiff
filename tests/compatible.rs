@@ -9,9 +9,9 @@ fn regular_samples_compat() {
 
     for sample in samples.iter() {
         eprintln!("compatibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load().unwrap();
+        let (s, t) = sample.load_source_target().unwrap();
 
-        let p1 = testing.bsdiff(&s[..], &t[..]).unwrap();
+        let p1 = testing.get_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();
         if t1 != t {
             panic!("bsdiff/qbspatch incompatible: `{}`", sample.name);
@@ -37,9 +37,9 @@ fn random_samples_compat() {
 
     for sample in samples.iter() {
         eprintln!("compatibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load().unwrap();
+        let (s, t) = sample.load_source_target().unwrap();
 
-        let p1 = testing.bsdiff(&s[..], &t[..]).unwrap();
+        let p1 = testing.get_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();
         if t1 != t {
             panic!("bsdiff/qbspatch incompatible: `{}`", sample.name);

@@ -9,7 +9,7 @@ fn regular_samples_invert() {
 
     for sample in samples.iter() {
         eprintln!("invertibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load().unwrap();
+        let (s, t) = sample.load_source_target().unwrap();
         let p = testing.qbsdiff(&s[..], &t[..]).unwrap();
         let t1 = testing.qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
@@ -26,7 +26,7 @@ fn pathological_samples_invert() {
 
     for sample in samples.iter() {
         eprintln!("invertibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load().unwrap();
+        let (s, t) = sample.load_source_target().unwrap();
         let p = testing.qbsdiff(&s[..], &t[..]).unwrap();
         let t1 = testing.qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
@@ -44,7 +44,7 @@ fn random_samples_invert() {
 
     for sample in samples.iter() {
         eprintln!("invertibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load().unwrap();
+        let (s, t) = sample.load_source_target().unwrap();
         let p = testing.qbsdiff(&s[..], &t[..]).unwrap();
         let t1 = testing.qbspatch(&s[..], &p[..]).unwrap();
         if t != t1 {
