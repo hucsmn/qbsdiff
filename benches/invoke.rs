@@ -54,9 +54,10 @@ pub fn diff(crit: &mut Criterion) {
 criterion_group! {
     name = patch_benches;
     config = Criterion::default()
-        .sample_size(50)
+        .sample_size(10)
         .noise_threshold(0.02)
-        .warm_up_time(time::Duration::from_millis(500));
+        .warm_up_time(time::Duration::from_millis(200))
+		.measurement_time(time::Duration::new(2, 0));
     targets = patch,
 }
 
@@ -65,7 +66,8 @@ criterion_group! {
     config = Criterion::default()
         .sample_size(10)
         .noise_threshold(0.02)
-        .warm_up_time(time::Duration::from_millis(500));
+        .warm_up_time(time::Duration::from_millis(500))
+		.measurement_time(time::Duration::new(10, 0));
     targets = diff,
 }
 

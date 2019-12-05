@@ -445,27 +445,18 @@ pub fn default_random_bench_samples() -> Vec<RandomSample> {
             name: "rand-512k",
             source: Random(512*1024),
             targets: vec![
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
+                Distort(0.05),
+                Distort(0.50),
+                Distort(0.95),
             ],
         },
         RandomSample {
-            name: "rand-2m",
-            source: Random(2*1024*1024),
+            name: "rand-4m",
+            source: Random(4*1024*1024),
             targets: vec![
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
-            ],
-        },
-        RandomSample {
-            name: "rand-8m",
-            source: Random(8*1024*1024),
-            targets: vec![
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
+                Distort(0.05),
+                Distort(0.50),
+                Distort(0.95),
             ],
         },
     ]
