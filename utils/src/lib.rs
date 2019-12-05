@@ -7,8 +7,6 @@ use std::ffi::OsStr;
 use std::process;
 use std::path;
 use std::path::Path;
-//use walkdir::WalkDir;
-//use std::time;
 use globwalk::glob;
 use rand::distributions::uniform::{SampleUniform, Uniform};
 use rand::prelude::*;
@@ -84,110 +82,12 @@ impl Testing {
     }
 }
 
-/*
-pub struct Benchmarking {
-    manifest_dir: path::PathBuf,
-    assets_dir: path::PathBuf,
-    target_dir: path::PathBuf,
-    cmd_newest: bool,
-}
-*/
-
 /// The benchmarking context.
 pub struct Benchmarking {
     assets_dir: path::PathBuf,
 }
 
 impl Benchmarking {
-/*
-TODO: use `criterion::Criterion::bench_program` instead, and rewrite helpers.
-
-    pub fn new(manifest_dir: path::PathBuf) -> Self {
-        let assets_dir = manifest_dir.join("assets");
-        let target_dir = manifest_dir.join("target").join("release");
-
-        let mut bench = Benchmarking {
-            manifest_dir,
-            assets_dir,
-            target_dir,
-            cmd_newest: false,
-        };
-        bench.refresh_cmd_state();
-        bench
-    }
-    /// Perform qbsdiff via external command.
-    pub fn qbsdiff_cmd<P: AsRef<Path>>(&self, s: P, t: P) -> io::Result<()> {
-        if !self.cmd_newest {
-            return Err(io::Error::new(io::ErrorKind::Other, "please rebuild qbsdiff/qbspatch binaries"));
-        }
-        run_command_in(
-            self.target_dir.as_path(),
-            "qbsdiff",
-            &[s.as_ref().as_os_str(), t.as_ref().as_os_str(), null_device()],
-        )
-    }
-
-    /// Perform qbspatch via external command.
-    pub fn qbspatch_cmd<P: AsRef<Path>>(&self, s: P, p: P) -> io::Result<()> {
-        if !self.cmd_newest {
-            return Err(io::Error::new(io::ErrorKind::Other, "please rebuild qbsdiff/qbspatch binaries"));
-        }
-        run_command_in(
-            self.target_dir.as_path(),
-            "qbspatch",
-            &[s.as_ref().as_os_str(), null_device(), p.as_ref().as_os_str()],
-        )
-    }
-
-    /// Perform external bsdiff command.
-    pub fn bsdiff_cmd<P: AsRef<Path>>(&self, s: P, t: P) -> io::Result<()> {
-        let dir = self.assets_dir.join("bin");
-        run_command_in(
-            dir,
-            "bsdiff",
-            &[s.as_ref().as_os_str(), t.as_ref().as_os_str(), null_device()],
-        )
-    }
-
-    /// Perform external bspatch command.
-    pub fn bspatch_cmd<P: AsRef<Path>>(&self, s: P, p: P) -> io::Result<()> {
-        let dir = self.assets_dir.join("bin");
-        run_command_in(
-            dir,
-            "bspatch",
-            &[s.as_ref().as_os_str(), null_device(), p.as_ref().as_os_str()],
-        )
-    }
-
-    fn refresh_cmd_state(&mut self) {
-        let src = WalkDir::new(self.manifest_dir.join("src"))
-            .follow_links(true)
-            .into_iter();
-        let cmd = WalkDir::new(self.manifest_dir.join("cmd"))
-            .follow_links(true)
-            .into_iter();
-        let mut edit_time = time::SystemTime::UNIX_EPOCH;
-        for entry in Iterator::chain(src, cmd) {
-            if let Ok(meta) = entry.and_then(|e| e.metadata()) {
-                if let Ok(mtime) = meta.modified() {
-                    edit_time = Ord::max(edit_time, mtime);
-                }
-            }
-        }
-        
-        self.cmd_newest = self
-            .last_build_time()
-            .map(|build_time| build_time > edit_time)
-            .unwrap_or(false);
-    }
-
-    fn last_build_time(&self) -> io::Result<time::SystemTime> {
-        let t1 = fs::metadata(get_binary_in(self.target_dir.as_path(), "qbsdiff")?)?.modified()?;
-        let t2 = fs::metadata(get_binary_in(self.target_dir.as_path(), "qbspatch")?)?.modified()?;
-        Ok(Ord::min(t1, t2))
-    }
-*/
-
     /// Create new benchmarking context.
     pub fn new(assets_dir: path::PathBuf) -> Self {
         Benchmarking { assets_dir }
@@ -313,21 +213,6 @@ fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf
     fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
     Ok(bin)
 }
-
-
-/*
-// helper to get null device
-
-#[cfg(windows)]
-fn null_device() -> &'static OsStr {
-    OsStr::new("NUL:")
-}
-
-#[cfg(unix)]
-fn null_device() -> &'static OsStr {
-    OsStr::new("/dev/null")
-}
-*/
 
 /// Test sample.
 pub struct Sample {
