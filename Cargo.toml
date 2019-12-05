@@ -19,6 +19,7 @@ clap = { optional = true, version = "2.33" }
 
 [dev-dependencies]
 utils = { version ="*", path = "utils" }
+criterion = "0.3"
 
 [features]
 default = []
@@ -33,3 +34,7 @@ required-features = ["cmd"]
 name = "qbspatch"
 path = "cmd/qbspatch.rs"
 required-features = ["cmd"]
+
+[[bench]]
+name = "invoke"
+harness = false

@@ -9,7 +9,8 @@ fn regular_samples_compat() {
 
     for sample in samples.iter() {
         eprintln!("compatibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load_source_target().unwrap();
+        let s = sample.load_source().unwrap();
+        let t = sample.load_target().unwrap();
 
         let p1 = testing.get_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();
@@ -37,7 +38,8 @@ fn random_samples_compat() {
 
     for sample in samples.iter() {
         eprintln!("compatibility test on sample `{}`", sample.name);
-        let (s, t) = sample.load_source_target().unwrap();
+        let s = sample.load_source().unwrap();
+        let t = sample.load_target().unwrap();
 
         let p1 = testing.get_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();

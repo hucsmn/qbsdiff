@@ -6,6 +6,9 @@ use std::io;
 use std::ffi::OsStr;
 use std::process;
 use std::path;
+use std::path::Path;
+//use walkdir::WalkDir;
+//use std::time;
 use globwalk::glob;
 use rand::distributions::uniform::{SampleUniform, Uniform};
 use rand::prelude::*;
@@ -63,6 +66,7 @@ impl Testing {
     /// Prepare random samples if needed and get the sample list.
     pub fn get_random_samples(&self, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
         let dir = self.assets_dir.join("random");
+        fs::create_dir_all(dir.as_path())?;
         get_random_caches_in(dir, descs)
     }
 
@@ -80,7 +84,180 @@ impl Testing {
     }
 }
 
-fn run_bsdiff_in<P: AsRef<path::Path>>(dir: P, s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
+/*
+pub struct Benchmarking {
+    manifest_dir: path::PathBuf,
+    assets_dir: path::PathBuf,
+    target_dir: path::PathBuf,
+    cmd_newest: bool,
+}
+*/
+
+/// The benchmarking context.
+pub struct Benchmarking {
+    assets_dir: path::PathBuf,
+}
+
+impl Benchmarking {
+/*
+TODO: use `criterion::Criterion::bench_program` instead, and rewrite helpers.
+
+    pub fn new(manifest_dir: path::PathBuf) -> Self {
+        let assets_dir = manifest_dir.join("assets");
+        let target_dir = manifest_dir.join("target").join("release");
+
+        let mut bench = Benchmarking {
+            manifest_dir,
+            assets_dir,
+            target_dir,
+            cmd_newest: false,
+        };
+        bench.refresh_cmd_state();
+        bench
+    }
+    /// Perform qbsdiff via external command.
+    pub fn qbsdiff_cmd<P: AsRef<Path>>(&self, s: P, t: P) -> io::Result<()> {
+        if !self.cmd_newest {
+            return Err(io::Error::new(io::ErrorKind::Other, "please rebuild qbsdiff/qbspatch binaries"));
+        }
+        run_command_in(
+            self.target_dir.as_path(),
+            "qbsdiff",
+            &[s.as_ref().as_os_str(), t.as_ref().as_os_str(), null_device()],
+        )
+    }
+
+    /// Perform qbspatch via external command.
+    pub fn qbspatch_cmd<P: AsRef<Path>>(&self, s: P, p: P) -> io::Result<()> {
+        if !self.cmd_newest {
+            return Err(io::Error::new(io::ErrorKind::Other, "please rebuild qbsdiff/qbspatch binaries"));
+        }
+        run_command_in(
+            self.target_dir.as_path(),
+            "qbspatch",
+            &[s.as_ref().as_os_str(), null_device(), p.as_ref().as_os_str()],
+        )
+    }
+
+    /// Perform external bsdiff command.
+    pub fn bsdiff_cmd<P: AsRef<Path>>(&self, s: P, t: P) -> io::Result<()> {
+        let dir = self.assets_dir.join("bin");
+        run_command_in(
+            dir,
+            "bsdiff",
+            &[s.as_ref().as_os_str(), t.as_ref().as_os_str(), null_device()],
+        )
+    }
+
+    /// Perform external bspatch command.
+    pub fn bspatch_cmd<P: AsRef<Path>>(&self, s: P, p: P) -> io::Result<()> {
+        let dir = self.assets_dir.join("bin");
+        run_command_in(
+            dir,
+            "bspatch",
+            &[s.as_ref().as_os_str(), null_device(), p.as_ref().as_os_str()],
+        )
+    }
+
+    fn refresh_cmd_state(&mut self) {
+        let src = WalkDir::new(self.manifest_dir.join("src"))
+            .follow_links(true)
+            .into_iter();
+        let cmd = WalkDir::new(self.manifest_dir.join("cmd"))
+            .follow_links(true)
+            .into_iter();
+        let mut edit_time = time::SystemTime::UNIX_EPOCH;
+        for entry in Iterator::chain(src, cmd) {
+            if let Ok(meta) = entry.and_then(|e| e.metadata()) {
+                if let Ok(mtime) = meta.modified() {
+                    edit_time = Ord::max(edit_time, mtime);
+                }
+            }
+        }
+        
+        self.cmd_newest = self
+            .last_build_time()
+            .map(|build_time| build_time > edit_time)
+            .unwrap_or(false);
+    }
+
+    fn last_build_time(&self) -> io::Result<time::SystemTime> {
+        let t1 = fs::metadata(get_binary_in(self.target_dir.as_path(), "qbsdiff")?)?.modified()?;
+        let t2 = fs::metadata(get_binary_in(self.target_dir.as_path(), "qbspatch")?)?.modified()?;
+        Ok(Ord::min(t1, t2))
+    }
+*/
+
+    /// Create new benchmarking context.
+    pub fn new(assets_dir: path::PathBuf) -> Self {
+        Benchmarking { assets_dir }
+    }
+
+    /// Perform qbspatch via internal library calls.
+    pub fn qbsdiff(&self, s: &[u8], t: &[u8]) -> io::Result<()> {
+        Bsdiff::new(s, t).compare(io::sink())?;
+        Ok(())
+    }
+
+    /// Perform qbspatch via internal library calls.
+    pub fn qbspatch(&self, s: &[u8], p: &[u8]) -> io::Result<()> {
+        Bspatch::new(p)?.apply(s, io::sink())?;
+        Ok(())
+    }
+
+    /// Get regular samples.
+    pub fn get_regular_samples(&self) -> io::Result<Vec<Sample>> {
+        let dir = self.assets_dir.join("samples");
+        get_samples_in(dir)
+    }
+
+    /// Get pathological samples.
+    pub fn get_pathological_samples(&self) -> io::Result<Vec<Sample>> {
+        let dir = self.assets_dir.join("pathological");
+        get_samples_in(dir)
+    }
+
+    /// Prepare random samples if needed and get the sample list.
+    pub fn get_random_samples(&self, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
+        let dir = self.assets_dir.join("random").join("bench");
+        fs::create_dir_all(dir.as_path())?;
+        get_random_caches_in(dir, descs)
+    }
+
+    /// Run bsdiff to generate patch if cache does not exist then get the cache.
+    pub fn get_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
+        if fs::metadata(sample.patch.as_path()).is_err() {
+            if self.should_use_bsdiff(sample) {
+                let dir = self.assets_dir.join("bin");
+                run_command_in(
+                    dir,
+                    "bsdiff",
+                    &[sample.source.as_os_str(), sample.target.as_os_str(), sample.patch.as_os_str()],
+                )?;
+            } else {
+                let mut patch = Vec::new();
+                let source = fs::read(sample.source.as_path())?;
+                let target = fs::read(sample.target.as_path())?;
+                Bsdiff::new(&source[..], &target[..])
+                    .compare(io::Cursor::new(&mut patch))?;
+                patch.shrink_to_fit();
+                fs::write(sample.patch.as_path(), &patch[..])?;
+                return Ok(patch);
+            }
+        }
+        fs::read(sample.patch.as_path())
+    }
+
+    fn should_use_bsdiff(&self, sample: &Sample) -> bool {
+        sample.patch
+            .parent()
+            .and_then(|p| p.file_name())
+            .map(|d| d == "samples")
+            .unwrap_or(false)
+    }
+}
+
+fn run_bsdiff_in<P: AsRef<Path>>(dir: P, s: &[u8], t: &[u8]) -> io::Result<Vec<u8>> {
     let spath = create_temp(s)?;
     let tpath = create_temp(t)?;
     let ppath = create_temp(b"")?;
@@ -92,7 +269,7 @@ fn run_bsdiff_in<P: AsRef<path::Path>>(dir: P, s: &[u8], t: &[u8]) -> io::Result
     fs::read(ppath)
 }
 
-fn run_bspatch_in<P: AsRef<path::Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
+fn run_bspatch_in<P: AsRef<Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
     let spath = create_temp(s)?;
     let tpath = create_temp(b"")?;
     let ppath = create_temp(p)?;
@@ -106,7 +283,7 @@ fn run_bspatch_in<P: AsRef<path::Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Resul
 
 fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
 where
-    P: AsRef<path::Path>,
+    P: AsRef<Path>,
     S: AsRef<OsStr>,
 {
     let bin = get_binary_in(dir, cmd)?;
@@ -125,17 +302,32 @@ where
 }
 
 #[cfg(windows)]
-fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
+fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
     Ok(dir.as_ref().join(format!("{}.exe", name)))
 }
 
 #[cfg(unix)]
-fn get_binary_in<P: AsRef<path::Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
+fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     let bin = dir.as_ref().join(name);
     fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
     Ok(bin)
 }
+
+
+/*
+// helper to get null device
+
+#[cfg(windows)]
+fn null_device() -> &'static OsStr {
+    OsStr::new("NUL:")
+}
+
+#[cfg(unix)]
+fn null_device() -> &'static OsStr {
+    OsStr::new("/dev/null")
+}
+*/
 
 /// Test sample.
 pub struct Sample {
@@ -146,16 +338,18 @@ pub struct Sample {
 }
 
 impl Sample {
-    /// Load source and target.
-    pub fn load_source_target(&self) -> io::Result<(Vec<u8>, Vec<u8>)> {
-        Ok((
-            fs::read(self.source.as_path())?,
-            fs::read(self.target.as_path())?,
-        ))
+    /// Load source data.
+    pub fn load_source(&self) -> io::Result<Vec<u8>> {
+        Ok(fs::read(self.source.as_path())?)
+    }
+
+    /// Load target data.
+    pub fn load_target(&self) -> io::Result<Vec<u8>> {
+        Ok(fs::read(self.target.as_path())?)
     }
 }
 
-fn get_samples_in<P: AsRef<path::Path>>(dir: P) -> io::Result<Vec<Sample>> {
+fn get_samples_in<P: AsRef<Path>>(dir: P) -> io::Result<Vec<Sample>> {
     let mut samples = Vec::new();
     let pat = dir.as_ref().join("*.s");
     let walker;
@@ -208,7 +402,7 @@ fn get_samples_in<P: AsRef<path::Path>>(dir: P) -> io::Result<Vec<Sample>> {
     Ok(samples)
 }
 
-fn get_random_caches_in<P: AsRef<path::Path>>(dir: P, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
+fn get_random_caches_in<P: AsRef<Path>>(dir: P, descs: &[RandomSample]) -> io::Result<Vec<Sample>> {
     fs::create_dir_all(dir.as_ref())?;
 
     let mut samples = Vec::new();
@@ -356,6 +550,42 @@ sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. "
     ]
 }
 
+/// Default random benchmark samples.
+pub fn default_random_bench_samples() -> Vec<RandomSample> {
+    use RandomSource::Random;
+    use RandomTarget::Distort;
+
+    vec![
+        RandomSample {
+            name: "rand-512k",
+            source: Random(512*1024),
+            targets: vec![
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-2m",
+            source: Random(2*1024*1024),
+            targets: vec![
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+        RandomSample {
+            name: "rand-8m",
+            source: Random(8*1024*1024),
+            targets: vec![
+                Distort(0.0),
+                Distort(0.5),
+                Distort(1.0),
+            ],
+        },
+    ]
+}
+
 fn random_bytes(n: usize) -> Vec<u8> {
     let mut rng = thread_rng();
     let mut bytes = Vec::with_capacity(n);
@@ -445,7 +675,7 @@ fn create_temp<B: AsRef<[u8]>>(bytes: B) -> io::Result<path::PathBuf> {
     Ok(p)
 }
 
-fn exists_file<P: AsRef<path::Path>>(name: P) -> bool {
+fn exists_file<P: AsRef<Path>>(name: P) -> bool {
     if let Ok(meta) = fs::metadata(name) {
         meta.is_file()
     } else {

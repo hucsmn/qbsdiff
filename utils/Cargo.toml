@@ -3,10 +3,12 @@ name = "utils"
 version = "0.1.0"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
 edition = "2018"
+publish = false
 description = "internal utilities for tests and benchmarks"
 
 [dependencies]
 qbsdiff = { version ="*", path = ".." }
+#walkdir = "2"
 globwalk = "0.7"
 rand = "0.7"
 chrono = "0.4"
