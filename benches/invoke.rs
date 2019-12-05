@@ -21,7 +21,7 @@ pub fn patch(crit: &mut Criterion) {
     {
         let bench_name = format!("patch {}", sample.name);
         let s = sample.load_source().unwrap();
-        let p = benching.get_cached_patch(sample).unwrap();
+        let p = benching.load_cached_patch(sample).unwrap();
         crit.bench_function(bench_name.as_str(), |b| {
             b.iter(|| benching.qbspatch(&s[..], &p[..]).unwrap())
         });

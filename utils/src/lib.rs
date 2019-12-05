@@ -68,8 +68,8 @@ impl Testing {
         get_random_caches_in(dir, descs)
     }
 
-    /// Run bsdiff to generate patch if cache does not exist then get the cache.
-    pub fn get_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
+    /// Run bsdiff to generate patch if cache does not exist then load the cache.
+    pub fn load_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
         if fs::metadata(sample.patch.as_path()).is_err() {
             let dir = self.assets_dir.join("bin");
             run_command_in(
@@ -124,8 +124,8 @@ impl Benchmarking {
         get_random_caches_in(dir, descs)
     }
 
-    /// Run bsdiff to generate patch if cache does not exist then get the cache.
-    pub fn get_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
+    /// Run bsdiff to generate patch if cache does not exist then load the cache.
+    pub fn load_cached_patch(&self, sample: &Sample) -> io::Result<Vec<u8>> {
         if fs::metadata(sample.patch.as_path()).is_err() {
             if self.should_use_bsdiff(sample) {
                 let dir = self.assets_dir.join("bin");

@@ -12,7 +12,7 @@ fn regular_samples_compat() {
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
-        let p1 = testing.get_cached_patch(&sample).unwrap();
+        let p1 = testing.load_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();
         if t1 != t {
             panic!("bsdiff/qbspatch incompatible: `{}`", sample.name);
@@ -41,7 +41,7 @@ fn random_samples_compat() {
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
-        let p1 = testing.get_cached_patch(&sample).unwrap();
+        let p1 = testing.load_cached_patch(&sample).unwrap();
         let t1 = testing.qbspatch(&s[..], &p1[..]).unwrap();
         if t1 != t {
             panic!("bsdiff/qbspatch incompatible: `{}`", sample.name);
