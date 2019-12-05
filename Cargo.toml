@@ -18,7 +18,7 @@ suffix_array = { version = "0.4", default-features = false, features = ["paralle
 clap = { optional = true, version = "2.33" }
 
 [dev-dependencies]
-utils = { version ="0.1", path = "utils" }
+qbsdiff_test_bench_utils = { version ="0.1", path = "utils" }
 criterion = "0.3"
 
 [features]

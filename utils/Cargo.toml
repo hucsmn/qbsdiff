@@ -1,10 +1,11 @@
 [package]
-name = "utils"
+name = "qbsdiff_test_bench_utils"
 version = "0.1.0"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
 edition = "2018"
-publish = false
-description = "internal utilities for tests and benchmarks"
+license = "MIT"
+repository = "https://github.com/hucsmn/qbsdiff"
+description = "private utilities of the qbsdiff crate for tests and benchmarks"
 
 [dependencies]
 qbsdiff = { version ="*", path = ".." }

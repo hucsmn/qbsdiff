@@ -3,7 +3,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::path;
 use std::time;
-use utils::*;
+use qbsdiff_test_bench_utils::*;
 
 pub fn patch(crit: &mut Criterion) {
     let assets = path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");

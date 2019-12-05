@@ -1,5 +1,5 @@
 use std::path;
-use utils::*;
+use qbsdiff_test_bench_utils::*;
 
 #[test]
 fn regular_samples_invert() {
