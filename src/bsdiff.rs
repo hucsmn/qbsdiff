@@ -267,6 +267,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
                 let mut pos = 0u64;
                 let mut ctrls = Vec::new();
                 for ctl in diff {
+                    pos += ctl.add;
                     pos = pos.wrapping_add(ctl.seek as u64);
                     ctrls.push(ctl);
                 }
