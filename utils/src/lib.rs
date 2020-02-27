@@ -11,6 +11,42 @@ use globwalk::glob;
 use rand::distributions::uniform::{SampleUniform, Uniform};
 use rand::prelude::*;
 
+/// Options for qbsdiff.
+#[derive(Copy, Clone, Debug)]
+pub struct QbsdiffOptions {
+    pub chunk_size: usize,
+    pub small_match: usize,
+    pub compression_level: qbsdiff::Compression,
+    pub buffer_size: usize,
+}
+
+impl Default for QbsdiffOptions {
+    fn default() -> Self {
+        QbsdiffOptions {
+            chunk_size: 0,
+            small_match: qbsdiff::bsdiff::SMALL_MATCH,
+            compression_level: qbsdiff::bsdiff::LEVEL,
+            buffer_size: qbsdiff::bsdiff::BUFFER_SIZE,
+        }
+    }
+}
+
+/// Options for qbspatch.
+#[derive(Copy, Clone, Debug)]
+pub struct QbspatchOptions {
+    pub buffer_size: usize,
+    pub delta_min: usize,
+}
+
+impl Default for QbspatchOptions {
+    fn default() -> Self {
+        QbspatchOptions {
+            buffer_size: qbsdiff::bspatch::BUFFER_SIZE,
+            delta_min: qbsdiff::bspatch::DELTA_MIN,
+        }
+    }
+}
+
 /// The testing context.
 pub struct Testing {
     assets_dir: path::PathBuf,
@@ -41,11 +77,34 @@ impl Testing {
         Ok(p)
     }
 
+    /// Perform qbsdiff with options.
+    pub fn qbsdiff_with(&self, s: &[u8], t: &[u8], opts: QbsdiffOptions) -> io::Result<Vec<u8>> {
+        let mut p = Vec::new();
+        Bsdiff::new(s, t)
+            .parallel(opts.chunk_size)
+            .small_match(opts.small_match)
+            .compression_level(opts.compression_level)
+            .buffer_size(opts.buffer_size)
+            .compare(io::Cursor::new(&mut p))?;
+        Ok(p)
+    }
+
     /// Perform qbspatch.
     pub fn qbspatch(&self, s: &[u8], p: &[u8]) -> io::Result<Vec<u8>> {
         let patcher = Bspatch::new(p)?;
         let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
         patcher.apply(s, io::Cursor::new(&mut t))?;
+        Ok(t)
+    }
+
+    /// Perform qbspatch with options.
+    pub fn qbspatch_with(&self, s: &[u8], p: &[u8], opts: QbspatchOptions) -> io::Result<Vec<u8>> {
+        let patcher = Bspatch::new(p)?;
+        let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
+        patcher
+            .buffer_size(opts.buffer_size)
+            .delta_min(opts.delta_min)
+            .apply(s, io::Cursor::new(&mut t))?;
         Ok(t)
     }
 
@@ -99,9 +158,29 @@ impl Benchmarking {
         Ok(())
     }
 
+    /// Perform qbsdiff with options.
+    pub fn qbsdiff_with(&self, s: &[u8], t: &[u8], opts: QbsdiffOptions) -> io::Result<()> {
+        Bsdiff::new(s, t)
+            .parallel(opts.chunk_size)
+            .small_match(opts.small_match)
+            .compression_level(opts.compression_level)
+            .buffer_size(opts.buffer_size)
+            .compare(io::sink())?;
+        Ok(())
+    }
+
     /// Perform qbspatch via internal library calls.
     pub fn qbspatch(&self, s: &[u8], p: &[u8]) -> io::Result<()> {
         Bspatch::new(p)?.apply(s, io::sink())?;
+        Ok(())
+    }
+
+    /// Perform qbspatch with options.
+    pub fn qbspatch_with(&self, s: &[u8], p: &[u8], opts: QbspatchOptions) -> io::Result<()> {
+        Bspatch::new(p)?
+            .buffer_size(opts.buffer_size)
+            .delta_min(opts.delta_min)
+            .apply(s, io::sink())?;
         Ok(())
     }
 
