@@ -1,5 +1,5 @@
-use std::path;
 use qbsdiff_test_bench_utils::*;
+use std::path;
 
 // Parallel chunk size to test.
 const CHUNK_SIZE: usize = 4096;
@@ -11,7 +11,7 @@ fn regular_samples_par_invert() {
     let samples = testing.get_regular_samples().unwrap();
     let opts = QbsdiffOptions {
         chunk_size: CHUNK_SIZE,
-        .. QbsdiffOptions::default()
+        ..QbsdiffOptions::default()
     };
 
     for sample in samples.iter() {
@@ -34,7 +34,7 @@ fn pathological_samples_par_invert() {
     let samples = testing.get_pathological_samples().unwrap();
     let opts = QbsdiffOptions {
         chunk_size: CHUNK_SIZE,
-        .. QbsdiffOptions::default()
+        ..QbsdiffOptions::default()
     };
 
     for sample in samples.iter() {
@@ -58,7 +58,7 @@ fn random_samples_par_invert() {
     let samples = testing.get_random_samples(descs.as_ref()).unwrap();
     let opts = QbsdiffOptions {
         chunk_size: CHUNK_SIZE,
-        .. QbsdiffOptions::default()
+        ..QbsdiffOptions::default()
     };
 
     for sample in samples.iter() {

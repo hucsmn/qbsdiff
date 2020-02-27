@@ -45,7 +45,15 @@ fn main() {
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();
 
-    match BsdiffApp::new(parallel, compress_expr, bsize_expr, small_expr, source_name, target_name, patch_name) {
+    match BsdiffApp::new(
+        parallel,
+        compress_expr,
+        bsize_expr,
+        small_expr,
+        source_name,
+        target_name,
+        patch_name,
+    ) {
         Ok(app) => {
             if let Err(e) = app.execute() {
                 eprintln!("error: {}", e);
@@ -84,15 +92,17 @@ impl BsdiffApp {
         } else {
             ParallelScheme::Never
         };
-    
+
         let level = match parse_usize(compress_expr)? {
             1 | 2 | 3 => Compression::Fastest,
             4 | 5 | 6 => Compression::Default,
             7 | 8 | 9 => Compression::Best,
-            _ => return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "compression level must be in range 1-9"
-            )),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "compression level must be in range 1-9",
+                ))
+            }
         };
 
         let bsize = parse_usize(bsize_expr)?;

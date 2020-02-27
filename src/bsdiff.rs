@@ -1,10 +1,10 @@
 #![forbid(unsafe_code)]
 use super::utils::*;
 use bzip2::write::BzEncoder;
+use rayon::prelude::*;
 use std::io::{Cursor, Result, Write};
 use std::ops::Range;
 use suffix_array::SuffixArray;
-use rayon::prelude::*;
 
 /// Compression level of the bzip2 compressor.
 pub use bzip2::Compression;
@@ -41,7 +41,7 @@ pub enum ParallelScheme {
     Auto,
 
     /// Each parallel job works on a chunk no large than given size.
-    /// 
+    ///
     /// The chunk size should be greater than 256 KiB, or it would choose a
     /// larger chunk size to avoid bad quality of patch.
     ChunkSize(usize),
@@ -116,7 +116,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
     /// Set parrallel searching scheme (default is `ParallelScheme::Never`).
     /// Chunk size or thread number should not be zero, or it would
     /// automatically choose a proper number instead.
-    /// 
+    ///
     /// Considering that small chunk size of each parallel job may lead to bad
     /// patch quality, the chunk size is forced to be no less than 256 KiB
     /// internally.
@@ -178,14 +178,10 @@ impl<'s, 't> Bsdiff<'s, 't> {
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
         use ParallelScheme::*;
         let mut chunk = match self.scheme {
-            Never =>
-                self.t.len(),
-            Auto | NumJobs(0) =>
-                div_ceil(self.t.len(), Ord::max(num_cpus::get(), 1)),
-            ChunkSize(chunk) =>
-                chunk,
-            NumJobs(n) =>
-                div_ceil(self.t.len(), n),
+            Never => self.t.len(),
+            Auto | NumJobs(0) => div_ceil(self.t.len(), Ord::max(num_cpus::get(), 1)),
+            ChunkSize(chunk) => chunk,
+            NumJobs(n) => div_ceil(self.t.len(), n),
         };
         chunk = Ord::max(chunk, MIN_CHUNK);
 
@@ -302,15 +298,25 @@ struct ParSaDiff<'s, 't> {
 }
 
 impl<'s, 't> ParSaDiff<'s, 't> {
-    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, chunk: usize, small: usize, dismat: usize, longsuf: usize) -> Self {
-        let jobs = t.chunks(chunk)
-                .map(|ti| SaDiff::new(s, ti, sa, small, dismat, longsuf))
-                .collect();
+    pub fn new(
+        s: &'s [u8],
+        t: &'t [u8],
+        sa: &'s SuffixArray<'s>,
+        chunk: usize,
+        small: usize,
+        dismat: usize,
+        longsuf: usize,
+    ) -> Self {
+        let jobs = t
+            .chunks(chunk)
+            .map(|ti| SaDiff::new(s, ti, sa, small, dismat, longsuf))
+            .collect();
         ParSaDiff { jobs }
     }
 
     pub fn compute(mut self) -> Vec<Control> {
-        self.jobs.par_iter_mut()
+        self.jobs
+            .par_iter_mut()
             .map(|diff| {
                 let mut pos = 0u64;
                 let mut ctrls = Vec::new();
@@ -320,10 +326,22 @@ impl<'s, 't> ParSaDiff<'s, 't> {
                     ctrls.push(ctl);
                 }
                 if pos <= std::i64::MAX as u64 {
-                    ctrls.push(Control { add: 0, copy: 0, seek: -(pos as i64) });
+                    ctrls.push(Control {
+                        add: 0,
+                        copy: 0,
+                        seek: -(pos as i64),
+                    });
                 } else {
-                    ctrls.push(Control { add: 0, copy: 0, seek: std::i64::MIN });
-                    ctrls.push(Control { add: 0, copy: 0, seek: -(pos.wrapping_add(std::i64::MIN as u64) as i64) });
+                    ctrls.push(Control {
+                        add: 0,
+                        copy: 0,
+                        seek: std::i64::MIN,
+                    });
+                    ctrls.push(Control {
+                        add: 0,
+                        copy: 0,
+                        seek: -(pos.wrapping_add(std::i64::MIN as u64) as i64),
+                    });
                 }
                 ctrls
             })

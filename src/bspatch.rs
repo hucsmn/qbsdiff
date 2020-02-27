@@ -146,13 +146,7 @@ struct Context<'s, 'p, T: Write> {
 
 impl<'s, 'p, T: Write> Context<'s, 'p, T> {
     /// Create context.
-    pub fn new(
-        patch: PatchFile<'p>,
-        source: &'s [u8],
-        target: T,
-        bsize: usize,
-        dsize: usize,
-    ) -> Self {
+    pub fn new(patch: PatchFile<'p>, source: &'s [u8], target: T, bsize: usize, dsize: usize) -> Self {
         Context {
             source: Cursor::new(source),
             target,
@@ -209,11 +203,8 @@ impl<'s, 'p, T: Write> Context<'s, 'p, T> {
 
             self.source.read_exact(&mut self.buf[self.n..self.n + k])?;
             self.patch.delta.read_exact(&mut self.dlt[..k])?;
-            Iterator::zip(
-                self.buf[self.n..self.n + k].iter_mut(),
-                self.dlt[..k].iter(),
-            )
-            .for_each(|(x, y)| *x = x.wrapping_add(*y));
+            Iterator::zip(self.buf[self.n..self.n + k].iter_mut(), self.dlt[..k].iter())
+                .for_each(|(x, y)| *x = x.wrapping_add(*y));
 
             self.n += k;
             if self.n >= self.buf.len() {
@@ -232,9 +223,7 @@ impl<'s, 'p, T: Write> Context<'s, 'p, T> {
         while count > 0 {
             let k = Ord::min(count, (self.buf.len() - self.n) as u64) as usize;
 
-            self.patch
-                .extra
-                .read_exact(&mut self.buf[self.n..self.n + k])?;
+            self.patch.extra.read_exact(&mut self.buf[self.n..self.n + k])?;
 
             self.n += k;
             if self.n >= self.buf.len() {
@@ -250,9 +239,7 @@ impl<'s, 'p, T: Write> Context<'s, 'p, T> {
 
     /// Move the cursor on source.
     fn seek(&mut self, offset: i64) -> Result<()> {
-        self.source
-            .seek(SeekFrom::Current(offset))
-            .map(std::mem::drop)
+        self.source.seek(SeekFrom::Current(offset)).map(std::mem::drop)
     }
 }
 
@@ -269,10 +256,7 @@ fn read_exact_or_eof<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
         }
     }
     if cnt != 0 && cnt != buf.len() {
-        Err(Error::new(
-            ErrorKind::UnexpectedEof,
-            "failed to fill whole buffer",
-        ))
+        Err(Error::new(ErrorKind::UnexpectedEof, "failed to fill whole buffer"))
     } else {
         Ok(cnt)
     }

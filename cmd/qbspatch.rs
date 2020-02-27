@@ -55,12 +55,7 @@ struct BspatchApp {
 }
 
 impl BspatchApp {
-    pub fn new(
-        bsize_expr: &str,
-        source_name: &str,
-        target_name: &str,
-        patch_name: &str,
-    ) -> io::Result<Self> {
+    pub fn new(bsize_expr: &str, source_name: &str, target_name: &str, patch_name: &str) -> io::Result<Self> {
         let bsize = parse_usize(bsize_expr)?;
 
         let mut source;
