@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use qbsdiff::Bsdiff;
+use qbsdiff::{Bsdiff, Compression, ParallelScheme};
 use std::fs;
 use std::io;
 use std::io::prelude::*;
@@ -14,6 +14,12 @@ fn main() {
         qbsdiff =>
         (version: "1.2.1")
         (about: "fast and memory saving bsdiff 4.x compatible delta compressor")
+        (@arg NOPAR:
+            -P
+            "disable parallel searching")
+        (@arg COMPRESS:
+            -z +takes_value
+            "bzip2 compression level (1-9)")
         (@arg BSIZE:
             -b +takes_value
             "buffer size")
@@ -31,13 +37,15 @@ fn main() {
             "patch file"))
     .get_matches();
 
+    let parallel = !matches.is_present("NOPAR");
+    let compress_expr = matches.value_of("COMPRESS").unwrap_or("5");
     let bsize_expr = matches.value_of("BSIZE").unwrap_or("4096");
     let small_expr = matches.value_of("SMALL").unwrap_or("12");
     let source_name = matches.value_of("SOURCE").unwrap();
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();
 
-    match BsdiffApp::new(bsize_expr, small_expr, source_name, target_name, patch_name) {
+    match BsdiffApp::new(parallel, compress_expr, bsize_expr, small_expr, source_name, target_name, patch_name) {
         Ok(app) => {
             if let Err(e) = app.execute() {
                 eprintln!("error: {}", e);
@@ -55,18 +63,38 @@ struct BsdiffApp {
     source: Vec<u8>,
     target: Vec<u8>,
     patch: Box<dyn Write>,
+    scheme: ParallelScheme,
+    level: Compression,
     bsize: usize,
     small: usize,
 }
 
 impl BsdiffApp {
     pub fn new(
+        parallel: bool,
+        compress_expr: &str,
         bsize_expr: &str,
         small_expr: &str,
         source_name: &str,
         target_name: &str,
         patch_name: &str,
     ) -> io::Result<Self> {
+        let scheme = if parallel {
+            ParallelScheme::Auto
+        } else {
+            ParallelScheme::Never
+        };
+    
+        let level = match parse_usize(compress_expr)? {
+            1 | 2 | 3 => Compression::Fastest,
+            4 | 5 | 6 => Compression::Default,
+            7 | 8 | 9 => Compression::Best,
+            _ => return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "compression level must be in range 1-9"
+            )),
+        };
+
         let bsize = parse_usize(bsize_expr)?;
         let small = parse_usize(small_expr)?;
 
@@ -106,6 +134,8 @@ impl BsdiffApp {
             source,
             target,
             patch,
+            scheme,
+            level,
             bsize,
             small,
         })
@@ -113,6 +143,8 @@ impl BsdiffApp {
 
     pub fn execute(self) -> io::Result<()> {
         Bsdiff::new(&self.source[..], &self.target[..])
+            .parallel_scheme(self.scheme)
+            .compression_level(self.level)
             .buffer_size(self.bsize)
             .small_match(self.small)
             .compare(self.patch)?;
