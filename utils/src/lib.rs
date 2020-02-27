@@ -1,5 +1,5 @@
 use chrono::Utc;
-use qbsdiff::{Bsdiff, Bspatch};
+use qbsdiff::{Bsdiff, Bspatch, Compression, ParallelScheme};
 use rand::random;
 use std::fs;
 use std::io;
@@ -16,7 +16,7 @@ use rand::prelude::*;
 pub struct QbsdiffOptions {
     pub chunk_size: usize,
     pub small_match: usize,
-    pub compression_level: qbsdiff::Compression,
+    pub compression_level: Compression,
     pub buffer_size: usize,
 }
 
@@ -81,7 +81,7 @@ impl Testing {
     pub fn qbsdiff_with(&self, s: &[u8], t: &[u8], opts: QbsdiffOptions) -> io::Result<Vec<u8>> {
         let mut p = Vec::new();
         Bsdiff::new(s, t)
-            .parallel(opts.chunk_size)
+            .parallel_scheme(ParallelScheme::ChunkSize(opts.chunk_size))
             .small_match(opts.small_match)
             .compression_level(opts.compression_level)
             .buffer_size(opts.buffer_size)
@@ -161,7 +161,7 @@ impl Benchmarking {
     /// Perform qbsdiff with options.
     pub fn qbsdiff_with(&self, s: &[u8], t: &[u8], opts: QbsdiffOptions) -> io::Result<()> {
         Bsdiff::new(s, t)
-            .parallel(opts.chunk_size)
+            .parallel_scheme(ParallelScheme::ChunkSize(opts.chunk_size))
             .small_match(opts.small_match)
             .compression_level(opts.compression_level)
             .buffer_size(opts.buffer_size)

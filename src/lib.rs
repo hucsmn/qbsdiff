@@ -56,5 +56,5 @@ pub mod bsdiff;
 pub mod bspatch;
 mod utils;
 
-pub use bsdiff::{Bsdiff, Compression};
+pub use bsdiff::{Bsdiff, Compression, ParallelScheme};
 pub use bspatch::Bspatch;

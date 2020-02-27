@@ -27,6 +27,29 @@ pub const BUFFER_SIZE: usize = 4096;
 /// Default compression level.
 pub const LEVEL: Compression = Compression::Default;
 
+/// Min chunk size of each parallel job, used internally in
+/// `ParallelScheme::Auto`.
+const MIN_CHUNK: usize = 256 * 1024;
+
+/// Parallel searching scheme of bsdiff.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ParallelScheme {
+    /// Never search in parallel.
+    Never,
+
+    /// Automatically determine parallel scheme.
+    Auto,
+
+    /// Each parallel job works on a chunk no large than given size.
+    /// 
+    /// The chunk size should be greater than 256 KiB, or it would choose a
+    /// larger chunk size to avoid bad quality of patch.
+    ChunkSize(usize),
+
+    /// Run no more than `N` parallel jobs.
+    NumJobs(usize),
+}
+
 /// Fast and memory saving bsdiff 4.x compatible delta compressor for
 /// execuatbles.
 ///
@@ -49,7 +72,7 @@ pub const LEVEL: Compression = Compression::Default;
 pub struct Bsdiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    par: Option<usize>,
+    scheme: ParallelScheme,
     small: usize,
     dismat: usize,
     longsuf: usize,
@@ -69,7 +92,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
         Bsdiff {
             s: source,
             t: target,
-            par: None,
+            scheme: ParallelScheme::Never,
             small: SMALL_MATCH,
             dismat: DISMATCH_COUNT,
             longsuf: LONG_SUFFIX,
@@ -90,17 +113,19 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Enable parrallel searching and specify the chunk size of each job
-    /// (default is `0`). If set to zero, parallel would be disabled.
+    /// Set parrallel searching scheme (default is `ParallelScheme::Never`).
+    /// Chunk size or thread number should not be zero, or it would
+    /// automatically choose a proper number instead.
     /// 
-    /// It is recommended to choose a large chunk size (e.g. 16M), because that
-    /// small chunk size may lead to bad patch quality.
-    pub fn parallel(mut self, chunk: usize) -> Self {
-        if chunk > 0 {
-            self.par = Some(chunk);
-        } else {
-            self.par = None;
+    /// Considering that small chunk size of each parallel job may lead to bad
+    /// patch quality, the chunk size is forced to be no less than 256 KiB
+    /// internally.
+    pub fn parallel_scheme(mut self, mut scheme: ParallelScheme) -> Self {
+        use ParallelScheme::*;
+        if scheme == ChunkSize(0) || scheme == NumJobs(0) {
+            scheme = Auto;
         }
+        self.scheme = scheme;
         self
     }
 
@@ -151,15 +176,38 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// The size of patch file would be returned if no error occurs.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
+        use ParallelScheme::*;
+        let mut chunk = match self.scheme {
+            Never =>
+                self.t.len(),
+            Auto | NumJobs(0) =>
+                div_ceil(self.t.len(), Ord::max(num_cpus::get(), 1)),
+            ChunkSize(chunk) =>
+                chunk,
+            NumJobs(n) =>
+                div_ceil(self.t.len(), n),
+        };
+        chunk = Ord::max(chunk, MIN_CHUNK);
+
         let sa = SuffixArray::new(self.s);
-        if let Some(chunk) = self.par {
+        if chunk >= self.t.len() {
+            let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
+            pack(self.s, self.t, diff, patch, self.level, self.bsize)
+        } else {
             let diff = ParSaDiff::new(self.s, self.t, &sa, chunk, self.small, self.dismat, self.longsuf);
             let ctrls = diff.compute();
             pack(self.s, self.t, ctrls.into_iter(), patch, self.level, self.bsize)
-        } else {
-            let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
-            pack(self.s, self.t, diff, patch, self.level, self.bsize)
         }
+    }
+}
+
+/// Calculate `ceil(x/y)`.
+#[inline]
+fn div_ceil(x: usize, y: usize) -> usize {
+    if x % y == 0 {
+        x / y
+    } else {
+        x / y + 1
     }
 }
 
