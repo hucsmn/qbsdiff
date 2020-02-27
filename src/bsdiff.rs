@@ -92,7 +92,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
         Bsdiff {
             s: source,
             t: target,
-            scheme: ParallelScheme::Never,
+            scheme: ParallelScheme::Auto,
             small: SMALL_MATCH,
             dismat: DISMATCH_COUNT,
             longsuf: LONG_SUFFIX,

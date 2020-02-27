@@ -154,7 +154,9 @@ impl Benchmarking {
 
     /// Perform qbspatch via internal library calls.
     pub fn qbsdiff(&self, s: &[u8], t: &[u8]) -> io::Result<()> {
-        Bsdiff::new(s, t).compare(io::sink())?;
+        Bsdiff::new(s, t)
+            .parallel_scheme(ParallelScheme::Auto)
+            .compare(io::sink())?;
         Ok(())
     }
 
