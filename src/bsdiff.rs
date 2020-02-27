@@ -4,6 +4,7 @@ use bzip2::write::BzEncoder;
 use std::io::{Cursor, Result, Write};
 use std::ops::Range;
 use suffix_array::SuffixArray;
+use rayon::prelude::*;
 
 /// Compression level of the bzip2 compressor.
 pub use bzip2::Compression;
@@ -48,6 +49,7 @@ pub const LEVEL: Compression = Compression::Default;
 pub struct Bsdiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
+    par: Option<usize>,
     small: usize,
     dismat: usize,
     longsuf: usize,
@@ -67,6 +69,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
         Bsdiff {
             s: source,
             t: target,
+            par: None,
             small: SMALL_MATCH,
             dismat: DISMATCH_COUNT,
             longsuf: LONG_SUFFIX,
@@ -84,6 +87,20 @@ impl<'s, 't> Bsdiff<'s, 't> {
     /// Set the target data.
     pub fn target(mut self, t: &'t [u8]) -> Self {
         self.t = t;
+        self
+    }
+
+    /// Enable parrallel searching and specify the chunk size of each job
+    /// (default is `0`). If set to zero, parallel would be disabled.
+    /// 
+    /// It is recommended to choose a large chunk size (e.g. 16M), because that
+    /// small chunk size may lead to bad patch quality.
+    pub fn parallel(mut self, chunk: usize) -> Self {
+        if chunk > 0 {
+            self.par = Some(chunk);
+        } else {
+            self.par = None;
+        }
         self
     }
 
@@ -134,8 +151,15 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// The size of patch file would be returned if no error occurs.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
-        let diff = SaDiff::new(self.s, self.t, self.small, self.dismat, self.longsuf);
-        pack(self.s, self.t, diff, patch, self.level, self.bsize)
+        let sa = SuffixArray::new(self.s);
+        if let Some(chunk) = self.par {
+            let diff = ParSaDiff::new(self.s, self.t, &sa, chunk, self.small, self.dismat, self.longsuf);
+            let ctrls = diff.compute();
+            pack(self.s, self.t, ctrls.into_iter(), patch, self.level, self.bsize)
+        } else {
+            let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
+            pack(self.s, self.t, diff, patch, self.level, self.bsize)
+        }
     }
 }
 
@@ -225,11 +249,45 @@ where
     Ok(32 + csize + dsize + esize)
 }
 
+struct ParSaDiff<'s, 't> {
+    jobs: Vec<SaDiff<'s, 't>>,
+}
+
+impl<'s, 't> ParSaDiff<'s, 't> {
+    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, chunk: usize, small: usize, dismat: usize, longsuf: usize) -> Self {
+        let jobs = t.chunks(chunk)
+                .map(|ti| SaDiff::new(s, ti, sa, small, dismat, longsuf))
+                .collect();
+        ParSaDiff { jobs }
+    }
+
+    pub fn compute(mut self) -> Vec<Control> {
+        self.jobs.par_iter_mut()
+            .map(|diff| {
+                let mut pos = 0u64;
+                let mut ctrls = Vec::new();
+                for ctl in diff {
+                    pos = pos.wrapping_add(ctl.seek as u64);
+                    ctrls.push(ctl);
+                }
+                if pos <= std::i64::MAX as u64 {
+                    ctrls.push(Control { add: 0, copy: 0, seek: -(pos as i64) });
+                } else {
+                    ctrls.push(Control { add: 0, copy: 0, seek: std::i64::MIN });
+                    ctrls.push(Control { add: 0, copy: 0, seek: -(pos.wrapping_add(std::i64::MIN as u64) as i64) });
+                }
+                ctrls
+            })
+            .flatten()
+            .collect()
+    }
+}
+
 /// The delta compression algorithm based on suffix array (a variant of bsdiff 4.x).
 struct SaDiff<'s, 't> {
     s: &'s [u8],
     t: &'t [u8],
-    sa: SuffixArray<'s>,
+    sa: &'s SuffixArray<'s>,
 
     small: usize,
     dismat: usize,
@@ -243,8 +301,7 @@ struct SaDiff<'s, 't> {
 
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], small: usize, dismat: usize, longsuf: usize) -> Self {
-        let sa = SuffixArray::new(s);
+    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, small: usize, dismat: usize, longsuf: usize) -> Self {
         SaDiff {
             s,
             t,
