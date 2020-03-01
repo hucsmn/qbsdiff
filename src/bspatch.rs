@@ -4,10 +4,10 @@ use bzip2::read::BzDecoder;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
 
 /// Default buffer size.
-pub const BUFFER_SIZE: usize = 16384;
+pub const BUFFER_SIZE: usize = 131072;
 
 /// Default initial size of the delta calculation buffer.
-pub const DELTA_MIN: usize = 1024;
+pub const DELTA_MIN: usize = 32768;
 
 /// Fast and memory saving patcher comaptible with bspatch.
 ///

@@ -28,7 +28,7 @@ fn main() {
             "patch file"))
     .get_matches();
 
-    let bsize_expr = matches.value_of("BSIZE").unwrap_or("16384");
+    let bsize_expr = matches.value_of("BSIZE").unwrap_or("131072");
     let source_name = matches.value_of("SOURCE").unwrap();
     let target_name = matches.value_of("TARGET").unwrap();
     let patch_name = matches.value_of("PATCH").unwrap();
@@ -88,6 +88,7 @@ impl BspatchApp {
     pub fn execute(self) -> io::Result<()> {
         Bspatch::new(&self.patch[..])?
             .buffer_size(self.bsize)
+            .delta_min(self.bsize / 4)
             .apply(&self.source[..], self.target)?;
         Ok(())
     }
