@@ -98,7 +98,8 @@ impl<'p> Bspatch<'p> {
     ///
     /// The target data size would be returned if no error occurs.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
-        let ctx = Context::new(self.patch, source, target, self.buffer_size, self.delta_min);
+        let delta_min = Ord::min(self.delta_min, self.buffer_size);
+        let ctx = Context::new(self.patch, source, target, self.buffer_size, delta_min);
         ctx.apply()
     }
 }
