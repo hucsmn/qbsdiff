@@ -56,7 +56,7 @@ pub enum ParallelScheme {
 /// Source data size should not be greater than MAX_LENGTH (about 4 GiB).
 ///
 /// Example:
-/// 
+///
 /// Produce the patch data with delta calculation buffer limited to 64k and
 /// parallel searching disabled, using the fastest bzip2 compression level:
 /// ```
@@ -152,7 +152,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
 
     /// Set the threshold to determine long match suffix after the previous
     /// exact match in target data (`ls` >= 64, default is `LONG_SUFFIX`).
-    /// 
+    ///
     /// Byte-by-byte scanning of long suffixes slows down the searching process
     /// in some pathological cases.
     /// This threshold controls whether a suffix should be scanned linearly or
@@ -167,7 +167,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
     }
 
     /// Set the compression level of bzip2 (default is `LEVEL`).
-    /// 
+    ///
     /// The fastest/default compression level is usually good enough.
     /// In contrast, patch files produced with the best level appeared slightly
     /// bigger in many test cases.
@@ -189,22 +189,28 @@ impl<'s, 't> Bsdiff<'s, 't> {
     ///
     /// The size of patch file would be returned if no error occurs.
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
+        // Determine parallel chunk size.
         use ParallelScheme::*;
         let mut chunk = match self.scheme {
             Never => self.t.len(),
-            Auto | NumJobs(0) => div_ceil(self.t.len(), Ord::max(num_cpus::get(), 1)),
             ChunkSize(chunk) => chunk,
-            NumJobs(n) => div_ceil(self.t.len(), n),
+            NumJobs(jobs) => div_ceil(self.t.len(), jobs),
+            Auto => {
+                let jobs = Ord::max(num_cpus::get(), 1);
+                div_ceil(self.t.len(), jobs)
+            }
         };
         chunk = Ord::max(chunk, MIN_CHUNK);
 
         let sa = SuffixArray::new(self.s);
         if chunk >= self.t.len() {
+            // Single thread is fine.
             let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
             pack(self.s, self.t, diff, patch, self.level, self.bsize)
         } else {
-            let diff = ParSaDiff::new(self.s, self.t, &sa, chunk, self.small, self.dismat, self.longsuf);
-            let ctrls = diff.compute();
+            // Go parallel.
+            let pardiff = ParSaDiff::new(self.s, self.t, &sa, chunk, self.small, self.dismat, self.longsuf);
+            let ctrls = pardiff.compute();
             pack(self.s, self.t, ctrls.into_iter(), patch, self.level, self.bsize)
         }
     }
@@ -306,11 +312,13 @@ where
     Ok(32 + csize + dsize + esize)
 }
 
+/// Paralleled searching by dividing chunks of target.
 struct ParSaDiff<'s, 't> {
     jobs: Vec<SaDiff<'s, 't>>,
 }
 
 impl<'s, 't> ParSaDiff<'s, 't> {
+    /// Create new parralleled bsdiff search context.
     pub fn new(
         s: &'s [u8],
         t: &'t [u8],
@@ -327,39 +335,35 @@ impl<'s, 't> ParSaDiff<'s, 't> {
         ParSaDiff { jobs }
     }
 
+    /// Compute all the bsdiff controls in parallel.
     pub fn compute(mut self) -> Vec<Control> {
-        self.jobs
+        let mut ret: Vec<_> = self
+            .jobs
             .par_iter_mut()
             .map(|diff| {
-                let mut pos = 0u64;
+                // Search current chunk.
+                let mut pos = 0;
                 let mut ctrls = Vec::new();
                 for ctl in diff {
                     pos += ctl.add;
                     pos = pos.wrapping_add(ctl.seek as u64);
                     ctrls.push(ctl);
                 }
-                if pos <= std::i64::MAX as u64 {
-                    ctrls.push(Control {
-                        add: 0,
-                        copy: 0,
-                        seek: -(pos as i64),
-                    });
-                } else {
-                    ctrls.push(Control {
-                        add: 0,
-                        copy: 0,
-                        seek: std::i64::MIN,
-                    });
-                    ctrls.push(Control {
-                        add: 0,
-                        copy: 0,
-                        seek: -(pos.wrapping_add(std::i64::MIN as u64) as i64),
-                    });
-                }
+
+                // Reset source cursor (`pos <= MAX_LENGTH` would not overflow).
+                debug_assert!(pos <= std::i64::MAX as u64);
+                ctrls.push(Control {
+                    add: 0,
+                    copy: 0,
+                    seek: -(pos as i64),
+                });
+
                 ctrls
             })
             .flatten()
-            .collect()
+            .collect();
+        ret.shrink_to_fit();
+        ret
     }
 }
 

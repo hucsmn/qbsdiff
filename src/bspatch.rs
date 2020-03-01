@@ -32,7 +32,7 @@ pub const DELTA_MIN: usize = 32768;
 /// use std::fs::File;
 /// use std::path::Path;
 /// use qbsdiff::Bspatch;
-/// 
+///
 /// fn file_allocate(file: &mut File, size: u64) -> io::Result<()> {
 ///     unimplemented!()
 /// }
@@ -63,7 +63,7 @@ impl<'p> Bspatch<'p> {
     }
 
     /// Set the main copy buffer size, (`bs > 128`, default is `BUFFER_SIZE`).
-    /// 
+    ///
     /// This is also the write buffer to target stream.
     /// A relative big buffer (usually 128k) will speed up writing process
     /// if the target stream is unbuffered (e.g. `std::fs::File`).
