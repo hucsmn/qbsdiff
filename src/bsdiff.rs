@@ -55,16 +55,20 @@ pub enum ParallelScheme {
 ///
 /// Source data size should not be greater than MAX_LENGTH (about 4 GiB).
 ///
-/// Compares source with target and generates patch using the best compression
-/// level:
+/// Example:
+/// 
+/// Produce the patch data with delta calculation buffer limited to 64k and
+/// parallel searching disabled, using the fastest bzip2 compression level:
 /// ```
 /// use std::io;
-/// use qbsdiff::{Bsdiff, Compression};
+/// use qbsdiff::{Bsdiff, Compression, ParallelScheme};
 ///
 /// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut patch = Vec::new();
 ///     Bsdiff::new(source, target)
-///         .compression_level(Compression::Best)
+///         .buffer_size(65536)
+///         .compression_level(Compression::Fastest)
+///         .parallel_scheme(ParallelScheme::Never)
 ///         .compare(io::Cursor::new(&mut patch))?;
 ///     Ok(patch)
 /// }
@@ -146,8 +150,13 @@ impl<'s, 't> Bsdiff<'s, 't> {
         self
     }
 
-    /// Set the threshold to determine long repating bytes in target data
-    /// (`ls` >= 64, default is `LONG_SUFFIX`).
+    /// Set the threshold to determine long match suffix after the previous
+    /// exact match in target data (`ls` >= 64, default is `LONG_SUFFIX`).
+    /// 
+    /// Byte-by-byte scanning of long suffixes slows down the searching process
+    /// in some pathological cases.
+    /// This threshold controls whether a suffix should be scanned linearly or
+    /// skimmed through.
     #[allow(unused)]
     fn long_suffix(mut self, mut ls: usize) -> Self {
         if ls < 64 {
@@ -158,6 +167,10 @@ impl<'s, 't> Bsdiff<'s, 't> {
     }
 
     /// Set the compression level of bzip2 (default is `LEVEL`).
+    /// 
+    /// The fastest/default compression level is usually good enough.
+    /// In contrast, patch files produced with the best level appeared slightly
+    /// bigger in many test cases.
     pub fn compression_level(mut self, lv: Compression) -> Self {
         self.level = lv;
         self

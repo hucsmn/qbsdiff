@@ -11,7 +11,7 @@ pub const DELTA_MIN: usize = 1024;
 
 /// Fast and memory saving patcher comaptible with bspatch.
 ///
-/// Apply patch to source using a 4k buffer:
+/// Apply patch with a 4k copy buffer and a 1k-4k delta cache buffer:
 /// ```
 /// use std::io;
 /// use qbsdiff::Bspatch;
@@ -20,21 +20,28 @@ pub const DELTA_MIN: usize = 1024;
 ///     let mut target = Vec::new();
 ///     Bspatch::new(patch)?
 ///         .buffer_size(4096)
+///         .delta_min(1024)
 ///         .apply(source, io::Cursor::new(&mut target))?;
 ///     Ok(target)
 /// }
 /// ```
 ///
-/// Preallocate target vector before applying patch:
+/// Preallocate target file before applying patch:
 /// ```
 /// use std::io;
+/// use std::fs::File;
+/// use std::path::Path;
 /// use qbsdiff::Bspatch;
+/// 
+/// fn file_allocate(file: &mut File, size: u64) -> io::Result<()> {
+///     unimplemented!()
+/// }
 ///
-/// fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
+/// fn bspatch<P: AsRef<Path>>(source: &[u8], target: P, patch: &[u8]) -> io::Result<u64> {
 ///     let patcher = Bspatch::new(patch)?;
-///     let mut target = Vec::with_capacity(patcher.hint_target_size() as usize);
-///     patcher.apply(source, io::Cursor::new(&mut target))?;
-///     Ok(target)
+///     let mut target_file = File::create(target)?;
+///     file_allocate(&mut target_file, patcher.hint_target_size())?;
+///     patcher.apply(source, &mut target_file)
 /// }
 /// ```
 pub struct Bspatch<'p> {
@@ -56,6 +63,10 @@ impl<'p> Bspatch<'p> {
     }
 
     /// Set the main copy buffer size, (`bs > 128`, default is `BUFFER_SIZE`).
+    /// 
+    /// This is also the write buffer to target stream.
+    /// A relative big buffer (usually 128k) will speed up writing process
+    /// if the target stream is unbuffered (e.g. `std::fs::File`).
     pub fn buffer_size(mut self, mut bs: usize) -> Self {
         if bs < 128 {
             bs = 128;
@@ -78,7 +89,7 @@ impl<'p> Bspatch<'p> {
         self
     }
 
-    /// Hint the final target file size, as provided in the patch header.
+    /// Hint the final target file size.
     pub fn hint_target_size(&self) -> u64 {
         self.patch.tsize
     }

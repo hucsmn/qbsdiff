@@ -17,31 +17,38 @@ qbsdiff = "1.3"
 Build commands
 --------------
 
-The commands `qbsdiff` and `qbspatch` could be compiled with:
+Build `qbsdiff` and `qbspatch` commands:
 ```shell
 $ cargo build --release --bins --features cmd
-$ target/release/qbsdiff -h
-$ target/release/qbspatch -h
+$ cd target/release
+$ ./qbsdiff --help
+$ ./qbspatch --help
+```
+Install commands to `$CARGO_HOME/bin`:
+```shell
+$ cargo install qbsdiff --features cmd
 ```
 
 Examples
 --------
 
-Apply patch to source and produce the target data:
+Produce the target stream by applying `patch` to `source`:
 ```rust
 use std::io;
 use qbsdiff::Bspatch;
 
 fn bspatch(source: &[u8], patch: &[u8]) -> io::Result<Vec<u8>> {
     let patcher = Bspatch::new(patch)?;
-    let mut target = Vec::new(); // More complicated: Vec::with_capacity(patcher.hint_target_size() as usize);
+    let mut target = Vec::new();
+    // To preallocate target:
+    //Vec::with_capacity(patcher.hint_target_size() as usize);
     patcher.apply(source, io::Cursor::new(&mut target))?;
     Ok(target)
 }
 ```
 
 
-Compare source with target then generate patch:
+Produce the patch data by comparing `source` with `target`:
 ```rust
 use std::io;
 use qbsdiff::Bsdiff;
