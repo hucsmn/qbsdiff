@@ -31,6 +31,10 @@ pub const LEVEL: Compression = Compression::Default;
 /// `ParallelScheme::Auto`.
 const MIN_CHUNK: usize = 256 * 1024;
 
+/// Default chunk size of each parallel job, used internally in
+/// `ParallelScheme::Auto`.
+const DEFAULT_CHUNK: usize = 512 * 1024;
+
 /// Parallel searching scheme of bsdiff.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ParallelScheme {
@@ -195,10 +199,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
             Never => self.t.len(),
             ChunkSize(chunk) => chunk,
             NumJobs(jobs) => div_ceil(self.t.len(), jobs),
-            Auto => {
-                let jobs = Ord::max(num_cpus::get(), 1);
-                div_ceil(self.t.len(), jobs)
-            }
+            Auto => DEFAULT_CHUNK,
         };
         chunk = Ord::max(chunk, MIN_CHUNK);
 

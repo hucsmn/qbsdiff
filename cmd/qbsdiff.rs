@@ -17,6 +17,9 @@ fn main() {
         (@arg NOPAR:
             -P
             "disable parallel searching")
+        (@arg CHUNK:
+            -c +takes_value
+            "parallel chunk size")
         (@arg COMPRESS:
             -z +takes_value
             "bzip2 compression level (1-9)")
@@ -38,6 +41,7 @@ fn main() {
     .get_matches();
 
     let parallel = !matches.is_present("NOPAR");
+    let chunk_expr = matches.value_of("CHUNK").unwrap_or("1048576");
     let compress_expr = matches.value_of("COMPRESS").unwrap_or("5");
     let bsize_expr = matches.value_of("BSIZE").unwrap_or("4096");
     let small_expr = matches.value_of("SMALL").unwrap_or("12");
@@ -47,6 +51,7 @@ fn main() {
 
     match BsdiffApp::new(
         parallel,
+        chunk_expr,
         compress_expr,
         bsize_expr,
         small_expr,
@@ -80,6 +85,7 @@ struct BsdiffApp {
 impl BsdiffApp {
     pub fn new(
         parallel: bool,
+        chunk_expr: &str,
         compress_expr: &str,
         bsize_expr: &str,
         small_expr: &str,
@@ -88,7 +94,11 @@ impl BsdiffApp {
         patch_name: &str,
     ) -> io::Result<Self> {
         let scheme = if parallel {
-            ParallelScheme::Auto
+            if let Ok(chunk_size) = parse_usize(chunk_expr) {
+                ParallelScheme::ChunkSize(Ord::max(chunk_size, 256 * 1024))
+            } else {
+                ParallelScheme::Auto
+            }
         } else {
             ParallelScheme::Never
         };
