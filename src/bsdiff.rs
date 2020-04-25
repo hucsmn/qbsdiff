@@ -202,7 +202,8 @@ impl<'s, 't> Bsdiff<'s, 't> {
         };
         chunk = Ord::max(chunk, MIN_CHUNK);
 
-        let sa = SuffixArray::new(self.s);
+        let mut sa = SuffixArray::new(self.s);
+        sa.enable_buckets();
         if chunk >= self.t.len() {
             // Single thread is fine.
             let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
