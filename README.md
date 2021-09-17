@@ -1,8 +1,8 @@
 qbsdiff
 =======
 
-[![crates](https://img.shields.io/badge/crates-1.3.1-blue)](https://crates.io/crates/qbsdiff)
-[![docs](https://img.shields.io/badge/docs-1.3.1-blue)](https://docs.rs/qbsdiff)
+[![crates](https://img.shields.io/badge/crates-1.4.0-blue)](https://crates.io/crates/qbsdiff)
+[![docs](https://img.shields.io/badge/docs-1.4.0-blue)](https://docs.rs/qbsdiff)
 [![dependency status](https://deps.rs/repo/github/hucsmn/qbsdiff/status.svg)](https://deps.rs/repo/github/hucsmn/qbsdiff)
 
 
@@ -11,7 +11,7 @@ Fast and memory saving bsdiff 4.x compatible delta compressor and patcher.
 Add dependency to `Cargo.toml`:
 ```toml
 [dependencies]
-qbsdiff = "1.3"
+qbsdiff = "1.4"
 ```
 
 Build commands

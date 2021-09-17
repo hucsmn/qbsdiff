@@ -13,7 +13,7 @@ use qbsdiff::Bspatch;
 fn main() {
     let matches = clap_app!(
         qbspatch =>
-        (version: "1.3.1")
+        (version: "1.4.0")
         (about: "fast and memory saving bsdiff 4.x compatible patcher")
         (@arg BSIZE:
             -b +takes_value
