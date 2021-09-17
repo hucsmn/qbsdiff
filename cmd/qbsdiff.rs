@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use qbsdiff::{Bsdiff, Compression, ParallelScheme};
+use qbsdiff::{Bsdiff, ParallelScheme};
 use std::fs;
 use std::io;
 use std::io::prelude::*;
@@ -77,7 +77,7 @@ struct BsdiffApp {
     target: Vec<u8>,
     patch: Box<dyn Write>,
     scheme: ParallelScheme,
-    level: Compression,
+    level: u32,
     bsize: usize,
     small: usize,
 }
@@ -104,13 +104,11 @@ impl BsdiffApp {
         };
 
         let level = match parse_usize(compress_expr)? {
-            1 | 2 | 3 => Compression::Fastest,
-            4 | 5 | 6 => Compression::Default,
-            7 | 8 | 9 => Compression::Best,
+            n if (0..=9).contains(&n) => n as u32,
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "compression level must be in range 1-9",
+                    "compression level must be in range 0-9",
                 ))
             }
         };

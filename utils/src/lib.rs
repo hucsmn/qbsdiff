@@ -1,5 +1,5 @@
 use chrono::Utc;
-use qbsdiff::{Bsdiff, Bspatch, Compression, ParallelScheme};
+use qbsdiff::{Bsdiff, Bspatch, ParallelScheme};
 use rand::random;
 use std::fs;
 use std::io;
@@ -16,7 +16,7 @@ use rand::prelude::*;
 pub struct QbsdiffOptions {
     pub chunk_size: usize,
     pub small_match: usize,
-    pub compression_level: Compression,
+    pub compression_level: u32,
     pub buffer_size: usize,
 }
 

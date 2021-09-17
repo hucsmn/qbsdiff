@@ -25,7 +25,7 @@ const LONG_SUFFIX: usize = 256;
 pub const BUFFER_SIZE: usize = 4096;
 
 /// Default compression level.
-pub const LEVEL: Compression = Compression::Default;
+pub const LEVEL: u32 = 6;
 
 /// Min chunk size of each parallel job, used internally in
 /// `ParallelScheme::Auto`.
@@ -71,7 +71,7 @@ pub enum ParallelScheme {
 ///     let mut patch = Vec::new();
 ///     Bsdiff::new(source, target)
 ///         .buffer_size(65536)
-///         .compression_level(Compression::Fastest)
+///         .compression_level(1)
 ///         .parallel_scheme(ParallelScheme::Never)
 ///         .compare(io::Cursor::new(&mut patch))?;
 ///     Ok(patch)
@@ -104,7 +104,7 @@ impl<'s, 't> Bsdiff<'s, 't> {
             small: SMALL_MATCH,
             dismat: DISMATCH_COUNT,
             longsuf: LONG_SUFFIX,
-            level: Compression::Default,
+            level: Compression::new(LEVEL),
             bsize: BUFFER_SIZE,
         }
     }
@@ -175,8 +175,8 @@ impl<'s, 't> Bsdiff<'s, 't> {
     /// The fastest/default compression level is usually good enough.
     /// In contrast, patch files produced with the best level appeared slightly
     /// bigger in many test cases.
-    pub fn compression_level(mut self, lv: Compression) -> Self {
-        self.level = lv;
+    pub fn compression_level(mut self, lv: u32) -> Self {
+        self.level = Compression::new(u32::min(u32::max(lv, 0), 9));
         self
     }
 
@@ -344,7 +344,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
             .par_iter_mut()
             .map(|diff| {
                 // Search current chunk.
-                let mut pos = 0;
+                let mut pos = 0u64;
                 let mut ctrls = Vec::new();
                 for ctl in diff {
                     pos += ctl.add;
