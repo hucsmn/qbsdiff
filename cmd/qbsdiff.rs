@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
-use qbsdiff::{Bsdiff, ParallelScheme};
+#[macro_use]
+extern crate clap;
+
 use std::fs;
 use std::io;
 use std::io::prelude::*;
 use std::process;
 use std::str::FromStr;
 
-#[macro_use]
-extern crate clap;
+use qbsdiff::{Bsdiff, ParallelScheme};
 
 fn main() {
     let matches = clap_app!(
@@ -38,7 +39,7 @@ fn main() {
         (@arg PATCH:
             +required
             "patch file"))
-    .get_matches();
+        .get_matches();
 
     let parallel = !matches.is_present("NOPAR");
     let chunk_expr = matches.value_of("CHUNK").unwrap_or("1048576");
@@ -109,7 +110,7 @@ impl BsdiffApp {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "compression level must be in range 0-9",
-                ))
+                ));
             }
         };
 

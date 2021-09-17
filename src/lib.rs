@@ -55,12 +55,14 @@ fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 
 Note that `qbsdiff` would not generate exactly the same patch file as `bsdiff`.
 Only the patch file format is promised to be compatible.
-*/
+ */
 
 #![forbid(unsafe_code)]
+
+pub use bsdiff::{Bsdiff, ParallelScheme};
+pub use bspatch::Bspatch;
+
 pub mod bsdiff;
 pub mod bspatch;
 mod utils;
 
-pub use bsdiff::{Bsdiff, Compression, ParallelScheme};
-pub use bspatch::Bspatch;

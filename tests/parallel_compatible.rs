@@ -1,5 +1,6 @@
-use qbsdiff_test_bench_utils::*;
 use std::path;
+
+use qbsdiff_test_bench_utils::*;
 
 // Parallel chunk size to test.
 const CHUNK_SIZE: usize = 4096;

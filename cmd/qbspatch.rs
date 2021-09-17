@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
-use qbsdiff::Bspatch;
+#[macro_use]
+extern crate clap;
+
 use std::fs;
 use std::io;
 use std::io::prelude::*;
 use std::process;
 use std::str::FromStr;
 
-#[macro_use]
-extern crate clap;
+use qbsdiff::Bspatch;
 
 fn main() {
     let matches = clap_app!(
@@ -26,7 +27,7 @@ fn main() {
         (@arg PATCH:
             +required
             "patch file"))
-    .get_matches();
+        .get_matches();
 
     let bsize_expr = matches.value_of("BSIZE").unwrap_or("131072");
     let source_name = matches.value_of("SOURCE").unwrap();

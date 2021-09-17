@@ -1,5 +1,6 @@
-use qbsdiff_test_bench_utils::*;
 use std::path;
+
+use qbsdiff_test_bench_utils::*;
 
 #[test]
 fn regular_samples_compat() {

@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
-use super::utils::*;
-use bzip2::read::BzDecoder;
+
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Seek, SeekFrom, Write};
+
+use bzip2::read::BzDecoder;
+
+use super::utils::*;
 
 /// Default buffer size.
 pub const BUFFER_SIZE: usize = 131072;
@@ -9,7 +12,7 @@ pub const BUFFER_SIZE: usize = 131072;
 /// Default initial size of the delta calculation buffer.
 pub const DELTA_MIN: usize = 32768;
 
-/// Fast and memory saving patcher comaptible with bspatch.
+/// Fast and memory saving patcher compatible with bspatch.
 ///
 /// Apply patch with a 4k copy buffer and a 1k-4k delta cache buffer:
 /// ```
@@ -255,7 +258,7 @@ impl<'s, 'p, T: Write> Context<'s, 'p, T> {
     }
 }
 
-// Read exact buf.len() bytes or reads an EOF, return the count of bytes readed.
+// Read exact buf.len() bytes or reads an EOF, return read bytes count.
 #[inline]
 fn read_exact_or_eof<R: Read>(r: &mut R, buf: &mut [u8]) -> Result<usize> {
     let mut cnt = 0;

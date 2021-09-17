@@ -1,5 +1,6 @@
-use qbsdiff_test_bench_utils::*;
 use std::path;
+
+use qbsdiff_test_bench_utils::*;
 
 #[test]
 fn regular_samples_invert() {
@@ -8,7 +9,7 @@ fn regular_samples_invert() {
     let samples = testing.get_regular_samples().unwrap();
 
     for sample in samples.iter() {
-        eprintln!("invertibility test on sample `{}`", sample.name);
+        eprintln!("invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
@@ -27,7 +28,7 @@ fn pathological_samples_invert() {
     let samples = testing.get_pathological_samples().unwrap();
 
     for sample in samples.iter() {
-        eprintln!("invertibility test on sample `{}`", sample.name);
+        eprintln!("invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
@@ -47,7 +48,7 @@ fn random_samples_invert() {
     let samples = testing.get_random_samples(descs.as_ref()).unwrap();
 
     for sample in samples.iter() {
-        eprintln!("invertibility test on sample `{}`", sample.name);
+        eprintln!("invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 

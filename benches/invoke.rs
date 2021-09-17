@@ -1,9 +1,10 @@
 /*! Benchmarking diff/patch via invoking this `qbsdiff` crate. */
 
-use criterion::{criterion_group, criterion_main, Criterion};
-use qbsdiff_test_bench_utils::*;
 use std::path;
 use std::time;
+
+use criterion::{Criterion, criterion_group, criterion_main};
+use qbsdiff_test_bench_utils::*;
 
 pub fn patch(crit: &mut Criterion) {
     let assets = path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");

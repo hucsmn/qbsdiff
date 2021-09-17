@@ -1,5 +1,6 @@
-use qbsdiff_test_bench_utils::*;
 use std::path;
+
+use qbsdiff_test_bench_utils::*;
 
 // Parallel chunk size to test.
 const CHUNK_SIZE: usize = 4096;
@@ -15,7 +16,7 @@ fn regular_samples_par_invert() {
     };
 
     for sample in samples.iter() {
-        eprintln!("parallel invertibility test on sample `{}`", sample.name);
+        eprintln!("parallel invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
@@ -38,7 +39,7 @@ fn pathological_samples_par_invert() {
     };
 
     for sample in samples.iter() {
-        eprintln!("parallel invertibility test on sample `{}`", sample.name);
+        eprintln!("parallel invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 
@@ -62,7 +63,7 @@ fn random_samples_par_invert() {
     };
 
     for sample in samples.iter() {
-        eprintln!("parallel invertibility test on sample `{}`", sample.name);
+        eprintln!("parallel invertible test on sample `{}`", sample.name);
         let s = sample.load_source().unwrap();
         let t = sample.load_target().unwrap();
 

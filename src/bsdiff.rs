@@ -1,22 +1,21 @@
 #![forbid(unsafe_code)]
-use super::utils::*;
-use bzip2::write::BzEncoder;
-use rayon::prelude::*;
+
 use std::io::{Cursor, Result, Write};
 use std::ops::Range;
+
+use bzip2::Compression;
+use bzip2::write::BzEncoder;
+use rayon::prelude::*;
+pub use suffix_array::MAX_LENGTH;
 use suffix_array::SuffixArray;
 
-/// Compression level of the bzip2 compressor.
-pub use bzip2::Compression;
-
-/// Max length of the source data.
-pub use suffix_array::MAX_LENGTH;
+use super::utils::*;
 
 /// Default threshold to determine small exact match.
 pub const SMALL_MATCH: usize = 12;
 
-/// Default threshold to determine dismatch.
-const DISMATCH_COUNT: usize = 8;
+/// Default threshold to determine mismatch.
+const MISMATCH_COUNT: usize = 8;
 
 /// Default threshold to enable binary search on suffixing similar bytes.
 const LONG_SUFFIX: usize = 256;
@@ -24,8 +23,8 @@ const LONG_SUFFIX: usize = 256;
 /// Default buffer size for delta calculation.
 pub const BUFFER_SIZE: usize = 4096;
 
-/// Default compression level.
-pub const LEVEL: u32 = 6;
+/// Default bzip2 compression level.
+pub const COMPRESSION_LEVEL: u32 = 6;
 
 /// Min chunk size of each parallel job, used internally in
 /// `ParallelScheme::Auto`.
@@ -34,6 +33,9 @@ const MIN_CHUNK: usize = 256 * 1024;
 /// Default chunk size of each parallel job, used internally in
 /// `ParallelScheme::Auto`.
 const DEFAULT_CHUNK: usize = 512 * 1024;
+
+/// Magic number bytes of bsdiff 4.x patch files.
+const BSDIFF4_MAGIC: &'static [u8] = b"BSDIFF40";
 
 /// Parallel searching scheme of bsdiff.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -55,7 +57,7 @@ pub enum ParallelScheme {
 }
 
 /// Fast and memory saving bsdiff 4.x compatible delta compressor for
-/// execuatbles.
+/// executables.
 ///
 /// Source data size should not be greater than MAX_LENGTH (about 4 GiB).
 ///
@@ -65,7 +67,7 @@ pub enum ParallelScheme {
 /// parallel searching disabled, using the fastest bzip2 compression level:
 /// ```
 /// use std::io;
-/// use qbsdiff::{Bsdiff, Compression, ParallelScheme};
+/// use qbsdiff::{Bsdiff, ParallelScheme};
 ///
 /// fn bsdiff(source: &[u8], target: &[u8]) -> io::Result<Vec<u8>> {
 ///     let mut patch = Vec::new();
@@ -78,14 +80,14 @@ pub enum ParallelScheme {
 /// }
 /// ```
 pub struct Bsdiff<'s, 't> {
-    s: &'s [u8],
-    t: &'t [u8],
-    scheme: ParallelScheme,
-    small: usize,
-    dismat: usize,
-    longsuf: usize,
-    bsize: usize,
-    level: Compression,
+    source: &'s [u8],
+    target: &'t [u8],
+    parallel_scheme: ParallelScheme,
+    small_match: usize,
+    mismatch_count: usize,
+    long_suffix: usize,
+    buffer_size: usize,
+    compression_level: Compression,
 }
 
 impl<'s, 't> Bsdiff<'s, 't> {
@@ -98,94 +100,96 @@ impl<'s, 't> Bsdiff<'s, 't> {
         }
 
         Bsdiff {
-            s: source,
-            t: target,
-            scheme: ParallelScheme::Auto,
-            small: SMALL_MATCH,
-            dismat: DISMATCH_COUNT,
-            longsuf: LONG_SUFFIX,
-            level: Compression::new(LEVEL),
-            bsize: BUFFER_SIZE,
+            source,
+            target,
+            parallel_scheme: ParallelScheme::Auto,
+            small_match: SMALL_MATCH,
+            mismatch_count: MISMATCH_COUNT,
+            long_suffix: LONG_SUFFIX,
+            compression_level: Compression::new(COMPRESSION_LEVEL),
+            buffer_size: BUFFER_SIZE,
         }
     }
 
     /// Set the source data.
-    pub fn source(mut self, s: &'s [u8]) -> Self {
-        self.s = s;
+    pub fn source(mut self, source: &'s [u8]) -> Self {
+        self.source = source;
         self
     }
 
     /// Set the target data.
-    pub fn target(mut self, t: &'t [u8]) -> Self {
-        self.t = t;
+    pub fn target(mut self, target: &'t [u8]) -> Self {
+        self.target = target;
         self
     }
 
-    /// Set parrallel searching scheme (default is `ParallelScheme::Never`).
+    /// Set parallel searching scheme (default is `ParallelScheme::Never`).
     /// Chunk size or thread number should not be zero, or it would
     /// automatically choose a proper number instead.
     ///
     /// Considering that small chunk size of each parallel job may lead to bad
     /// patch quality, the chunk size is forced to be no less than 256 KiB
     /// internally.
-    pub fn parallel_scheme(mut self, mut scheme: ParallelScheme) -> Self {
+    pub fn parallel_scheme(mut self, mut parallel_scheme: ParallelScheme) -> Self {
         use ParallelScheme::*;
-        if scheme == ChunkSize(0) || scheme == NumJobs(0) {
-            scheme = Auto;
+        if parallel_scheme == ChunkSize(0) || parallel_scheme == NumJobs(0) {
+            parallel_scheme = Auto;
         }
-        self.scheme = scheme;
+        self.parallel_scheme = parallel_scheme;
         self
     }
 
     /// Set the threshold to determine small match (default is `SMALL_MATCH`).
     /// If set to zero, no matches would be skipped.
-    pub fn small_match(mut self, sm: usize) -> Self {
-        self.small = sm;
+    pub fn small_match(mut self, small_match: usize) -> Self {
+        self.small_match = small_match;
         self
     }
 
-    /// Set the threshold to determine dismatch (`dis > 0`, default is `DISMATCH_COUNT`).
+    /// Set the threshold to determine mismatch (`mismatch_count > 0`, default is `MISMATCH_COUNT`).
     #[allow(unused)]
-    fn dismatch_count(mut self, mut dis: usize) -> Self {
-        if dis < 1 {
-            dis = 1;
+    fn mismatch_count(mut self, mut mismatch_count: usize) -> Self {
+        if mismatch_count < 1 {
+            mismatch_count = 1;
         }
-        self.dismat = dis;
+        self.mismatch_count = mismatch_count;
         self
     }
 
     /// Set the threshold to determine long match suffix after the previous
-    /// exact match in target data (`ls` >= 64, default is `LONG_SUFFIX`).
+    /// exact match in target data (`long_suffix` >= 64, default is `LONG_SUFFIX`).
     ///
     /// Byte-by-byte scanning of long suffixes slows down the searching process
     /// in some pathological cases.
     /// This threshold controls whether a suffix should be scanned linearly or
     /// skimmed through.
     #[allow(unused)]
-    fn long_suffix(mut self, mut ls: usize) -> Self {
-        if ls < 64 {
-            ls = 64;
+    fn long_suffix(mut self, mut long_suffix: usize) -> Self {
+        if long_suffix < 64 {
+            long_suffix = 64;
         }
-        self.longsuf = ls;
+        self.long_suffix = long_suffix;
         self
     }
 
-    /// Set the compression level of bzip2 (default is `LEVEL`).
+    /// Set the compression level of bzip2 (in range `0..=9`, default is `COMPRESSION_LEVEL`).
     ///
     /// The fastest/default compression level is usually good enough.
     /// In contrast, patch files produced with the best level appeared slightly
     /// bigger in many test cases.
-    pub fn compression_level(mut self, lv: u32) -> Self {
-        self.level = Compression::new(u32::min(u32::max(lv, 0), 9));
+    ///
+    /// [struct]: bzip2::Compression
+    pub fn compression_level(mut self, compression_level: u32) -> Self {
+        self.compression_level = Compression::new(u32::min(u32::max(compression_level, 0), 9));
         self
     }
 
-    /// Set the buffer size for delta calculation (`bs >= 128`, default is `BUFFER_SIZE`).
-    pub fn buffer_size(mut self, mut bs: usize) -> Self {
-        if bs < 128 {
-            bs = 128;
+    /// Set the buffer size for delta calculation (`buffer_size >= 128`, default is `BUFFER_SIZE`).
+    pub fn buffer_size(mut self, mut buffer_size: usize) -> Self {
+        if buffer_size < 128 {
+            buffer_size = 128;
         }
-        self.bsize = bs;
+        self.buffer_size = buffer_size;
         self
     }
 
@@ -195,25 +199,27 @@ impl<'s, 't> Bsdiff<'s, 't> {
     pub fn compare<P: Write>(&self, patch: P) -> Result<u64> {
         // Determine parallel chunk size.
         use ParallelScheme::*;
-        let mut chunk = match self.scheme {
-            Never => self.t.len(),
+        let mut chunk = match self.parallel_scheme {
+            Never => self.target.len(),
             ChunkSize(chunk) => chunk,
-            NumJobs(jobs) => div_ceil(self.t.len(), jobs),
+            NumJobs(jobs) => div_ceil(self.target.len(), jobs),
             Auto => DEFAULT_CHUNK,
         };
         chunk = Ord::max(chunk, MIN_CHUNK);
 
-        let mut sa = SuffixArray::new(self.s);
-        sa.enable_buckets();
-        if chunk >= self.t.len() {
+        let mut suffix_array = SuffixArray::new(self.source);
+        suffix_array.enable_buckets();
+        if chunk >= self.target.len() {
             // Single thread is fine.
-            let diff = SaDiff::new(self.s, self.t, &sa, self.small, self.dismat, self.longsuf);
-            pack(self.s, self.t, diff, patch, self.level, self.bsize)
+            let diff = SaDiff::new(self.source, self.target, &suffix_array,
+                                   self.small_match, self.mismatch_count, self.long_suffix);
+            pack(self.source, self.target, diff, patch, self.compression_level, self.buffer_size)
         } else {
             // Go parallel.
-            let pardiff = ParSaDiff::new(self.s, self.t, &sa, chunk, self.small, self.dismat, self.longsuf);
-            let ctrls = pardiff.compute();
-            pack(self.s, self.t, ctrls.into_iter(), patch, self.level, self.bsize)
+            let par_diff = ParSaDiff::new(self.source, self.target, &suffix_array, chunk,
+                                          self.small_match, self.mismatch_count, self.long_suffix);
+            let ctrls = par_diff.compute();
+            pack(self.source, self.target, ctrls.into_iter(), patch, self.compression_level, self.buffer_size)
         }
     }
 }
@@ -229,19 +235,19 @@ fn div_ceil(x: usize, y: usize) -> usize {
 }
 
 /// Construct bsdiff 4.x patch file from parts.
-fn pack<D, P>(s: &[u8], t: &[u8], diff: D, mut p: P, lv: Compression, bsize: usize) -> Result<u64>
-where
-    D: Iterator<Item = Control>,
-    P: Write,
+fn pack<D, P>(source: &[u8], target: &[u8], diff: D, mut patch: P, level: Compression, bsize: usize) -> Result<u64>
+    where
+        D: Iterator<Item=Control>,
+        P: Write,
 {
     let mut bz_ctrls = Vec::new();
     let mut bz_delta = Vec::new();
     let mut bz_extra = Vec::new();
 
     {
-        let mut ctrls = BzEncoder::new(Cursor::new(&mut bz_ctrls), lv);
-        let mut delta = BzEncoder::new(Cursor::new(&mut bz_delta), lv);
-        let mut extra = BzEncoder::new(Cursor::new(&mut bz_extra), lv);
+        let mut ctrls = BzEncoder::new(Cursor::new(&mut bz_ctrls), level);
+        let mut delta = BzEncoder::new(Cursor::new(&mut bz_delta), level);
+        let mut extra = BzEncoder::new(Cursor::new(&mut bz_extra), level);
 
         let mut spos = 0;
         let mut tpos = 0;
@@ -249,21 +255,21 @@ where
 
         let mut dat = Vec::with_capacity(bsize);
 
-        for ctl in diff {
+        for ctrl in diff {
             // Write control data.
-            encode_int(ctl.add as i64, &mut cbuf[0..8]);
-            encode_int(ctl.copy as i64, &mut cbuf[8..16]);
-            encode_int(ctl.seek, &mut cbuf[16..24]);
+            encode_int(ctrl.add as i64, &mut cbuf[0..8]);
+            encode_int(ctrl.copy as i64, &mut cbuf[8..16]);
+            encode_int(ctrl.seek, &mut cbuf[16..24]);
             ctrls.write_all(&cbuf[..])?;
 
             // Compute and write delta data, using limited buffer `dat`.
-            if ctl.add > 0 {
-                let mut n = ctl.add;
+            if ctrl.add > 0 {
+                let mut n = ctrl.add;
                 while n > 0 {
                     let k = Ord::min(n, bsize as u64) as usize;
 
                     dat.extend(
-                        Iterator::zip(s[spos as usize..].iter(), t[tpos as usize..].iter())
+                        Iterator::zip(source[spos as usize..].iter(), target[tpos as usize..].iter())
                             .map(|(x, y)| y.wrapping_sub(*x))
                             .take(k),
                     );
@@ -278,12 +284,12 @@ where
             }
 
             // Write extra data.
-            if ctl.copy > 0 {
-                extra.write_all(&t[tpos as usize..(tpos + ctl.copy) as usize])?;
-                tpos += ctl.copy;
+            if ctrl.copy > 0 {
+                extra.write_all(&target[tpos as usize..(tpos + ctrl.copy) as usize])?;
+                tpos += ctrl.copy;
             }
 
-            spos = spos.wrapping_add(ctl.seek as u64);
+            spos = spos.wrapping_add(ctrl.seek as u64);
         }
         ctrls.flush()?;
         delta.flush()?;
@@ -293,23 +299,23 @@ where
     bz_delta.shrink_to_fit();
     bz_extra.shrink_to_fit();
 
-    // Write header (b"BSDIFF40", control size, delta size, target size).
+    // Write header (BSDIFF4_MAGIC, control size, delta size, target size).
     let mut header = [0; 32];
     let csize = bz_ctrls.len() as u64;
     let dsize = bz_delta.len() as u64;
     let esize = bz_extra.len() as u64;
-    let tsize = t.len() as u64;
-    header[0..8].copy_from_slice(b"BSDIFF40");
+    let tsize = target.len() as u64;
+    header[0..8].copy_from_slice(BSDIFF4_MAGIC);
     encode_int(csize as i64, &mut header[8..16]);
     encode_int(dsize as i64, &mut header[16..24]);
     encode_int(tsize as i64, &mut header[24..32]);
-    p.write_all(&header[..])?;
+    patch.write_all(&header[..])?;
 
-    // Write bzipped controls, delta data and extra data.
-    p.write_all(&bz_ctrls[..])?;
-    p.write_all(&bz_delta[..])?;
-    p.write_all(&bz_extra[..])?;
-    p.flush()?;
+    // Write compressed controls, delta data and extra data.
+    patch.write_all(&bz_ctrls[..])?;
+    patch.write_all(&bz_delta[..])?;
+    patch.write_all(&bz_extra[..])?;
+    patch.flush()?;
 
     Ok(32 + csize + dsize + esize)
 }
@@ -320,19 +326,19 @@ struct ParSaDiff<'s, 't> {
 }
 
 impl<'s, 't> ParSaDiff<'s, 't> {
-    /// Create new parralleled bsdiff search context.
+    /// Create new paralleled bsdiff search context.
     pub fn new(
         s: &'s [u8],
         t: &'t [u8],
         sa: &'s SuffixArray<'s>,
         chunk: usize,
-        small: usize,
-        dismat: usize,
-        longsuf: usize,
+        small_match: usize,
+        mismatch_count: usize,
+        long_suffix: usize,
     ) -> Self {
         let jobs = t
             .chunks(chunk)
-            .map(|ti| SaDiff::new(s, ti, sa, small, dismat, longsuf))
+            .map(|ti| SaDiff::new(s, ti, sa, small_match, mismatch_count, long_suffix))
             .collect();
         ParSaDiff { jobs }
     }
@@ -353,7 +359,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
                 }
 
                 // Reset source cursor (`pos <= MAX_LENGTH` would not overflow).
-                debug_assert!(pos <= std::i64::MAX as u64);
+                debug_assert!(pos <= i64::MAX as u64);
                 ctrls.push(Control {
                     add: 0,
                     copy: 0,
@@ -375,9 +381,9 @@ struct SaDiff<'s, 't> {
     t: &'t [u8],
     sa: &'s SuffixArray<'s>,
 
-    small: usize,
-    dismat: usize,
-    longsuf: usize,
+    small_match: usize,
+    mismatch_count: usize,
+    long_suffix: usize,
 
     i0: usize,
     j0: usize,
@@ -387,14 +393,14 @@ struct SaDiff<'s, 't> {
 
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, small: usize, dismat: usize, longsuf: usize) -> Self {
+    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, small_match: usize, mismatch_count: usize, long_suffix: usize) -> Self {
         SaDiff {
             s,
             t,
             sa,
-            small,
-            dismat,
-            longsuf,
+            small_match,
+            mismatch_count,
+            long_suffix,
             i0: 0,
             j0: 0,
             n0: 0,
@@ -426,7 +432,7 @@ impl<'s, 't> SaDiff<'s, 't> {
         let mut j = self.j0 + self.n0;
         let mut k = j;
         let mut m = 0;
-        while j < self.t.len().saturating_sub(self.small) {
+        while j < self.t.len().saturating_sub(self.small_match) {
             // Finds out a possible exact match.
             let (i, n) = range_to_extent(self.sa.search_lcp(&self.t[j..]));
 
@@ -445,25 +451,25 @@ impl<'s, 't> SaDiff<'s, 't> {
                 // Match nothing.
                 j += 1;
                 m = 0;
-            } else if m == n || n <= self.small {
+            } else if m == n || n <= self.small_match {
                 // Skip small matches and non-empty exact matches to speed up
                 // searching and improve patch quality.
                 j += n;
                 m = 0;
-            } else if n <= m + self.dismat {
-                // Bytes with insufficient dismatches were treated as possible
+            } else if n <= m + self.mismatch_count {
+                // Bytes with insufficient mismatches were treated as possible
                 // suffixing similar data.
                 //
                 // The entire match is s[i0-b0..i0+n0+a0] ~= t[j0-b0..j0+n0+a0],
                 // where
                 //     n0 is the exact match (s[i0..i0+n0] == t[j0..j0+n0]),
                 //     b0 is the prefixing similar bytes,
-                //     a0 is tyhe sufixing similar bytes.
+                //     a0 is the suffixing similar bytes.
                 //
                 // Use binary search to approximately find out a proper skip
                 // length for long suffixing similar bytes.
                 // Do linear search instead when length is not long enough.
-                let next = if n <= self.longsuf {
+                let next = if n <= self.long_suffix {
                     j + 1
                 } else {
                     let mut x = 0;
@@ -488,7 +494,7 @@ impl<'s, 't> SaDiff<'s, 't> {
                     j += 1;
                 }
             } else {
-                // The count of dismatches is sufficient.
+                // The count of mismatches is sufficient.
                 return Some((i, j, n));
             }
         }
@@ -558,17 +564,17 @@ fn range_to_extent(range: Range<usize>) -> (usize, usize) {
     (start, end.saturating_sub(start))
 }
 
-/// Scans for the data length of the max simailarity.
+/// Scans for the data length of the max similarity.
 #[inline]
-fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
+fn scan_similar<T: Eq, I: Iterator<Item=T>>(xs: I, ys: I) -> usize {
     let mut i = 0;
     let mut matched = 0;
     let mut max_score = 0;
 
     for (n, eq) in (1..).zip(xs.zip(ys).map(|(x, y)| x == y)) {
         matched += usize::from(eq);
-        let dismatched = n - matched;
-        let score = matched.wrapping_sub(dismatched) as isize;
+        let mismatched = n - matched;
+        let score = matched.wrapping_sub(mismatched) as isize;
         if score > max_score {
             i = n;
             max_score = score;
@@ -580,7 +586,7 @@ fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
 
 /// Scans for the dividing point of the overlapping.
 #[inline]
-fn scan_divide<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I, zs: I) -> usize {
+fn scan_divide<T: Eq, I: Iterator<Item=T>>(xs: I, ys: I, zs: I) -> usize {
     let mut i = 0;
     let mut y_matched = 0;
     let mut z_matched = 0;

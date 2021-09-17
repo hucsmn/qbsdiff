@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+
 use byteorder::{ByteOrder, LE};
 
 /// Single bsdiff control instruction.
