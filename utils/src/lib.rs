@@ -289,10 +289,18 @@ fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf
     Ok(dir.as_ref().join(format!("{}.exe", name)))
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     let bin = dir.as_ref().join(name);
+    fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
+    Ok(bin)
+}
+
+#[cfg(all(unix, target_os = "macos"))]
+fn get_binary_in<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<path::PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let bin = dir.as_ref().join(name).with_extension("macos");
     fs::set_permissions(bin.as_path(), fs::Permissions::from_mode(0o755))?;
     Ok(bin)
 }
