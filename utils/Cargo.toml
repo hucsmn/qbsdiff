@@ -2,7 +2,7 @@
 name = "qbsdiff_test_bench_utils"
 version = "0.1.2"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 repository = "https://github.com/hucsmn/qbsdiff"
 description = "private utilities of the qbsdiff crate for tests and benchmarks"

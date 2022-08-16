@@ -65,4 +65,3 @@ pub use bspatch::Bspatch;
 pub mod bsdiff;
 pub mod bspatch;
 mod utils;
-

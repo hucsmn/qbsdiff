@@ -2,7 +2,7 @@
 name = "qbsdiff"
 version = "1.4.0"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 readme = "README.md"
 keywords = ["bsdiff", "delta"]
@@ -16,7 +16,7 @@ bzip2 = "0.4"
 byteorder = "1.4"
 rayon = "1.5"
 suffix_array = "0.5"
-clap = { optional = true, version = "2.33" }
+clap = { optional = true, version = "3.2", features = [ "derive" ] }
 
 [dev-dependencies]
 qbsdiff_test_bench_utils = { version ="0.1", path = "utils" }

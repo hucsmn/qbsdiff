@@ -3,7 +3,7 @@
 use std::path;
 use std::time;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use qbsdiff_test_bench_utils::*;
 
 pub fn patch(crit: &mut Criterion) {

@@ -3,11 +3,11 @@
 use std::io::{Cursor, Result, Write};
 use std::ops::Range;
 
-use bzip2::Compression;
 use bzip2::write::BzEncoder;
+use bzip2::Compression;
 use rayon::prelude::*;
-pub use suffix_array::MAX_LENGTH;
 use suffix_array::SuffixArray;
+pub use suffix_array::MAX_LENGTH;
 
 use super::utils::*;
 
@@ -211,15 +211,42 @@ impl<'s, 't> Bsdiff<'s, 't> {
         suffix_array.enable_buckets();
         if chunk >= self.target.len() {
             // Single thread is fine.
-            let diff = SaDiff::new(self.source, self.target, &suffix_array,
-                                   self.small_match, self.mismatch_count, self.long_suffix);
-            pack(self.source, self.target, diff, patch, self.compression_level, self.buffer_size)
+            let diff = SaDiff::new(
+                self.source,
+                self.target,
+                &suffix_array,
+                self.small_match,
+                self.mismatch_count,
+                self.long_suffix,
+            );
+            pack(
+                self.source,
+                self.target,
+                diff,
+                patch,
+                self.compression_level,
+                self.buffer_size,
+            )
         } else {
             // Go parallel.
-            let par_diff = ParSaDiff::new(self.source, self.target, &suffix_array, chunk,
-                                          self.small_match, self.mismatch_count, self.long_suffix);
+            let par_diff = ParSaDiff::new(
+                self.source,
+                self.target,
+                &suffix_array,
+                chunk,
+                self.small_match,
+                self.mismatch_count,
+                self.long_suffix,
+            );
             let ctrls = par_diff.compute();
-            pack(self.source, self.target, ctrls.into_iter(), patch, self.compression_level, self.buffer_size)
+            pack(
+                self.source,
+                self.target,
+                ctrls.into_iter(),
+                patch,
+                self.compression_level,
+                self.buffer_size,
+            )
         }
     }
 }
@@ -236,9 +263,9 @@ fn div_ceil(x: usize, y: usize) -> usize {
 
 /// Construct bsdiff 4.x patch file from parts.
 fn pack<D, P>(source: &[u8], target: &[u8], diff: D, mut patch: P, level: Compression, bsize: usize) -> Result<u64>
-    where
-        D: Iterator<Item=Control>,
-        P: Write,
+where
+    D: Iterator<Item = Control>,
+    P: Write,
 {
     let mut bz_ctrls = Vec::new();
     let mut bz_delta = Vec::new();
@@ -393,7 +420,14 @@ struct SaDiff<'s, 't> {
 
 impl<'s, 't> SaDiff<'s, 't> {
     /// Creates new search context.
-    pub fn new(s: &'s [u8], t: &'t [u8], sa: &'s SuffixArray<'s>, small_match: usize, mismatch_count: usize, long_suffix: usize) -> Self {
+    pub fn new(
+        s: &'s [u8],
+        t: &'t [u8],
+        sa: &'s SuffixArray<'s>,
+        small_match: usize,
+        mismatch_count: usize,
+        long_suffix: usize,
+    ) -> Self {
         SaDiff {
             s,
             t,
@@ -566,7 +600,7 @@ fn range_to_extent(range: Range<usize>) -> (usize, usize) {
 
 /// Scans for the data length of the max similarity.
 #[inline]
-fn scan_similar<T: Eq, I: Iterator<Item=T>>(xs: I, ys: I) -> usize {
+fn scan_similar<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I) -> usize {
     let mut i = 0;
     let mut matched = 0;
     let mut max_score = 0;
@@ -586,7 +620,7 @@ fn scan_similar<T: Eq, I: Iterator<Item=T>>(xs: I, ys: I) -> usize {
 
 /// Scans for the dividing point of the overlapping.
 #[inline]
-fn scan_divide<T: Eq, I: Iterator<Item=T>>(xs: I, ys: I, zs: I) -> usize {
+fn scan_divide<T: Eq, I: Iterator<Item = T>>(xs: I, ys: I, zs: I) -> usize {
     let mut i = 0;
     let mut y_matched = 0;
     let mut z_matched = 0;
