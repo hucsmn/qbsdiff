@@ -1,8 +1,14 @@
-/.idea
+# cargo
 /target
 /utils/target
-/assets/random
-/assets/*/*.p
 Cargo.lock
+
+# test suite
+/assets/random
+/assets/**/*.p
+
+# editors
+.idea/
+.vscode/
 **/*.rs.bk
 *.iml
