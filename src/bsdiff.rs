@@ -322,9 +322,6 @@ where
         delta.flush()?;
         extra.flush()?;
     }
-    bz_ctrls.shrink_to_fit();
-    bz_delta.shrink_to_fit();
-    bz_extra.shrink_to_fit();
 
     // Write header (BSDIFF4_MAGIC, control size, delta size, target size).
     let mut header = [0; 32];
@@ -372,7 +369,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
 
     /// Compute all the bsdiff controls in parallel.
     pub fn compute(mut self) -> Vec<Control> {
-        let mut ret: Vec<_> = self
+        self
             .jobs
             .par_iter_mut()
             .map(|diff| {
@@ -396,9 +393,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
                 ctrls
             })
             .flatten()
-            .collect();
-        ret.shrink_to_fit();
-        ret
+            .collect()
     }
 }
 
