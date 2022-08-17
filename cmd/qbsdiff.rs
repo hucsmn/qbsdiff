@@ -58,45 +58,23 @@ fn main() {
 
 fn execute(args: BsdiffArgs) -> io::Result<()> {
     // validate command line arguments
-    match args.compress_level {
-        Some(0..=9) | None => {}
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "compression level must be in range 0-9",
-            ));
-        }
-    };
+    if !(matches!(args.compress_level, Some(0..=9) | None)) {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "compression level must be in range 0-9",
+        ));
+    }
 
     // setup input/output
-    let mut source;
-    let mut target;
-    let patch: Box<dyn Write>;
     if args.source_path == "-" && args.target_path == "-" {
-        return Err(io::Error::new(io::ErrorKind::Other, "source and target are both stdin"));
+        return Err(io::Error::new(io::ErrorKind::Other, "source and target are both from stdin"));
     }
-    if args.source_path == "-" {
-        source = Vec::new();
-        io::stdin().read_to_end(&mut source)?;
-    } else {
-        source = fs::read(&args.source_path)?;
-    }
-    source.shrink_to_fit();
-    if args.target_path == "-" {
-        target = Vec::new();
-        io::stdin().read_to_end(&mut target)?;
-    } else {
-        target = fs::read(args.target_path)?;
-    }
-    target.shrink_to_fit();
-    if args.patch_path == "-" {
-        patch = Box::new(io::stdout());
-    } else {
-        patch = Box::new(fs::File::create(args.patch_path)?);
-    }
+    let source = input_bytes(&args.source_path)?;
+    let target = input_bytes(&args.target_path)?;
+    let patch = output_writer(&args.patch_path)?;
 
     // setup delta compressor
-    let mut bsdiff = Bsdiff::new(&source[..], &target[..]);
+    let mut bsdiff = Bsdiff::new(source.as_slice(), target.as_slice());
     if args.parallel {
         bsdiff = bsdiff.parallel_scheme(ParallelScheme::Auto);
     } else if let Some(mut chunk_size) = args.chunk_size {
@@ -118,4 +96,23 @@ fn execute(args: BsdiffArgs) -> io::Result<()> {
     // execute delta compressor
     bsdiff.compare(patch)?;
     Ok(())
+}
+
+fn input_bytes(path: &str) -> io::Result<Vec<u8>> {
+    let mut data;
+    if path == "-" {
+        data = Vec::new();
+        io::stdin().read_to_end(&mut data)?;
+    } else {
+        data = fs::read(path)?;
+    }
+    Ok(data)
+}
+
+fn output_writer(path: &str) -> io::Result<Box<dyn Write>> {
+    if path == "-" {
+        Ok(Box::new(io::stdout()))
+    } else {
+        Ok(Box::new(fs::File::create(path)?))
+    }
 }

@@ -42,31 +42,40 @@ fn main() {
 
 fn execute(args: BspatchArgs) -> io::Result<()> {
     // setup input/output
-    let mut source;
-    let target: Box<dyn Write>;
-    let mut patch;
-    if args.source_path == "-" {
-        source = Vec::new();
-        io::stdin().read_to_end(&mut source)?;
-    } else {
-        source = fs::read(&args.source_path)?;
+    if args.source_path == "-" && args.patch_path == "-" {
+        return Err(io::Error::new(io::ErrorKind::Other, "source and patch are both from stdin"));
     }
-    source.shrink_to_fit();
-    if args.target_path == "-" {
-        target = Box::new(io::stdout());
-    } else {
-        target = Box::new(fs::File::create(&args.target_path)?);
-    }
-    patch = fs::read(&args.patch_path)?;
-    patch.shrink_to_fit();
+    let source = input_bytes(&args.source_path)?;
+    let target = output_writer(&args.target_path)?;
+    let patch = input_bytes(&args.patch_path)?;
 
     // setup delta patcher
-    let mut bspatch = Bspatch::new(&patch[..])?;
+    let mut bspatch = Bspatch::new(patch.as_slice())?;
     if let Some(buffer_size) = args.buffer_size {
-        bspatch = bspatch.buffer_size(buffer_size).delta_min(buffer_size / 4)
+        bspatch = bspatch.buffer_size(buffer_size);
+        bspatch = bspatch.delta_min(buffer_size / 4);
     }
 
     // execute delta patcher
-    bspatch.apply(&source[..], target)?;
+    bspatch.apply(source.as_slice(), target)?;
     Ok(())
+}
+
+fn input_bytes(path: &str) -> io::Result<Vec<u8>> {
+    let mut data;
+    if path == "-" {
+        data = Vec::new();
+        io::stdin().read_to_end(&mut data)?;
+    } else {
+        data = fs::read(path)?;
+    }
+    Ok(data)
+}
+
+fn output_writer(path: &str) -> io::Result<Box<dyn Write>> {
+    if path == "-" {
+        Ok(Box::new(io::stdout()))
+    } else {
+        Ok(Box::new(fs::File::create(path)?))
+    }
 }
