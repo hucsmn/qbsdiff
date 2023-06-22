@@ -12,7 +12,7 @@ exclude = ["/assets"]
 description = "Fast and memory saving bsdiff 4.x compatible delta compressor and patcher."
 
 [dependencies]
-bzip2 = "0.4"
+bzip2 = "0.4.4"
 byteorder = "1.4"
 rayon = "1.5"
 suffix_array = "0.5"
