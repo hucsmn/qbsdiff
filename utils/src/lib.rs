@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
+use std::io::Read;
 use std::path;
 use std::path::Path;
 use std::process;
@@ -270,15 +271,22 @@ fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
         S: AsRef<OsStr>,
 {
     let bin = get_binary_in(dir, cmd)?;
-    let success = process::Command::new(bin)
+    let mut proc = process::Command::new(bin)
         .args(args)
         .stdout(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .spawn()?
-        .wait()?
-        .success();
+        .stderr(process::Stdio::piped())
+        .spawn()?;
+
+    let mut errors = String::new();
+    let mut stderr = proc.stderr.take()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to get command stderr"))?;
+    stderr.read_to_string(&mut errors)?;
+
+    let success = proc.wait()?.success();
     if !success {
-        return Err(io::Error::new(io::ErrorKind::Other, "command execution failed"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            if !errors.is_empty() { errors } else { "command execution failed".to_string() }));
     } else {
         Ok(())
     }
