@@ -271,7 +271,7 @@ fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
         S: AsRef<OsStr>,
 {
     let bin = get_binary_in(dir, cmd)?;
-    let mut proc = process::Command::new(bin)
+    let mut proc = process::Command::new(&bin)
         .args(args)
         .stdout(process::Stdio::null())
         .stderr(process::Stdio::piped())
@@ -282,11 +282,17 @@ fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to get command stderr"))?;
     stderr.read_to_string(&mut errors)?;
 
-    let success = proc.wait()?.success();
-    if !success {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            if !errors.is_empty() { errors } else { "command execution failed".to_string() }));
+    let status = proc.wait()?;
+    if !status.success() {
+        let message = format!("command [{} {}], {}, stderr:\n{}",
+                              bin.to_string_lossy(),
+                              args.iter()
+                                  .map(|arg| arg.as_ref().to_string_lossy())
+                                  .collect::<Vec<_>>()
+                                  .join(" "),
+                              status,
+                              errors);
+        return Err(io::Error::new(io::ErrorKind::Other, message));
     } else {
         Ok(())
     }
