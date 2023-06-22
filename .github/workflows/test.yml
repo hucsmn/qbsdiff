@@ -6,6 +6,9 @@ on:
   push:
     branches: [ master ]
 
+env:
+  RUST_BACKTRACE: 1
+
 jobs:
   test:
     strategy:
