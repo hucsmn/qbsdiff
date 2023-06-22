@@ -10,7 +10,7 @@ use qbsdiff::{Bsdiff, ParallelScheme};
 #[derive(Parser, Debug)]
 #[clap(
 name = "qbsdiff",
-version = "1.4.0",
+version = "1.4.1",
 about = "fast and memory saving bsdiff 4.x compatible delta compressor",
 long_about = None,
 )]
