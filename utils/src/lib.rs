@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path;
 use std::path::Path;
 use std::process;
@@ -97,6 +97,14 @@ impl Testing {
         let patcher = Bspatch::new(p)?;
         let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
         patcher.apply(s, io::Cursor::new(&mut t))?;
+        Ok(t)
+    }
+
+    /// Perform qbspatch with a Reader-ly source.
+    pub fn qbspatch_read(&self, s: impl Read + Seek, p: &[u8]) -> io::Result<Vec<u8>> {
+        let patcher = Bspatch::new(p)?;
+        let mut t = Vec::with_capacity(patcher.hint_target_size() as usize);
+        patcher.apply_reader(s, io::Cursor::new(&mut t))?;
         Ok(t)
     }
 
@@ -331,6 +339,11 @@ impl Sample {
     /// Load source data.
     pub fn load_source(&self) -> io::Result<Vec<u8>> {
         Ok(fs::read(self.source.as_path())?)
+    }
+
+    /// Load source data as a File.
+    pub fn load_source_file(&self) -> io::Result<fs::File> {
+        fs::File::open(self.source.as_path())
     }
 
     /// Load target data.

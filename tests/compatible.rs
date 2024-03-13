@@ -19,6 +19,12 @@ fn regular_samples_compat() {
             panic!("bsdiff/qbspatch incompatible: `{}`", sample.name);
         }
 
+        let sf = sample.load_source_file().unwrap();
+        let t1f = testing.qbspatch_read(&sf, &p1[..]).unwrap();
+        if t1f != t1 {
+            panic!("qbspatch/qbspatch_read incompatible: `{}`", sample.name);
+        }
+
         let p2 = testing.qbsdiff(&s[..], &t[..]).unwrap();
         let t2 = testing.bspatch(&s[..], &p2[..]).unwrap();
         if t2 != t {
