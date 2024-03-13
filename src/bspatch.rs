@@ -106,6 +106,19 @@ impl<'p> Bspatch<'p> {
         let ctx = Context::new(self.patch, curs, target, self.buffer_size, delta_min);
         ctx.apply()
     }
+
+    /// Apply patch to Read + Seek source data and output the stream of
+    /// target.
+    ///
+    /// This allows passing e.g. a std::fs::File and not pre-reading all
+    /// the data into memory.
+    ///
+    /// The target data size would be returned if no error occurs.
+    pub fn apply_reader<S: Read + Seek, T: Write>(self, source: S, target: T) -> Result<u64> {
+        let delta_min = Ord::min(self.delta_min, self.buffer_size);
+        let ctx = Context::new(self.patch, source, target, self.buffer_size, delta_min);
+        ctx.apply()
+    }
 }
 
 /// Patch file content.
