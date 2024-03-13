@@ -102,7 +102,8 @@ impl<'p> Bspatch<'p> {
     /// The target data size would be returned if no error occurs.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let delta_min = Ord::min(self.delta_min, self.buffer_size);
-        let ctx = Context::new(self.patch, source, target, self.buffer_size, delta_min);
+        let curs = Cursor::new(source);
+        let ctx = Context::new(self.patch, curs, target, self.buffer_size, delta_min);
         ctx.apply()
     }
 }
@@ -145,8 +146,8 @@ fn parse(patch: &[u8]) -> Result<PatchFile> {
 }
 
 /// Bspatch context.
-struct Context<'s, 'p, T: Write> {
-    source: Cursor<&'s [u8]>,
+struct Context<'p, T: Write, S: Read + Seek> {
+    source: S,
     target: T,
 
     patch: PatchFile<'p>,
@@ -159,11 +160,11 @@ struct Context<'s, 'p, T: Write> {
     total: u64,
 }
 
-impl<'s, 'p, T: Write> Context<'s, 'p, T> {
+impl<'p, T: Write, S: Read + Seek> Context<'p, T, S> {
     /// Create context.
-    pub fn new(patch: PatchFile<'p>, source: &'s [u8], target: T, bsize: usize, dsize: usize) -> Self {
+    pub fn new(patch: PatchFile<'p>, source: S, target: T, bsize: usize, dsize: usize) -> Self {
         Context {
-            source: Cursor::new(source),
+            source,
             target,
             patch,
             n: 0,
