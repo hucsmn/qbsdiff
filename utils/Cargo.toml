@@ -8,7 +8,7 @@ repository = "https://github.com/hucsmn/qbsdiff"
 description = "private utilities of the qbsdiff crate for tests and benchmarks"
 
 [dependencies]
-qbsdiff = { version ="1", path = ".." }
-globwalk = "0.8"
-rand = "0.8"
 chrono = "0.4"
+globwalk = "0.9"
+qbsdiff = { version = "1", path = ".." }
+rand = "0.8"
