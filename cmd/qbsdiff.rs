@@ -58,7 +58,7 @@ fn main() {
 
 fn execute(args: BsdiffArgs) -> io::Result<()> {
     // validate command line arguments
-    if !(matches!(args.compress_level, Some(0..=9) | None)) {
+    if !matches!(args.compress_level, Some(0..=9) | None) {
         return Err(io::Error::new(
             io::ErrorKind::Other,
             "compression level must be in range 0-9",

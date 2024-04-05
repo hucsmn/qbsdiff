@@ -56,7 +56,7 @@ pub struct Testing {
 }
 
 impl Testing {
-    /// Create new tesing context.
+    /// Create new testing context.
     pub fn new(assets_dir: path::PathBuf) -> Self {
         Testing { assets_dir }
     }
@@ -137,7 +137,11 @@ impl Testing {
             run_command_in(
                 dir,
                 "bsdiff",
-                &[sample.source.as_os_str(), sample.target.as_os_str(), sample.patch.as_os_str()],
+                &[
+                    sample.source.as_os_str(),
+                    sample.target.as_os_str(),
+                    sample.patch.as_os_str(),
+                ],
             )?;
         }
         fs::read(sample.patch.as_path())
@@ -216,14 +220,17 @@ impl Benchmarking {
                 run_command_in(
                     dir,
                     "bsdiff",
-                    &[sample.source.as_os_str(), sample.target.as_os_str(), sample.patch.as_os_str()],
+                    &[
+                        sample.source.as_os_str(),
+                        sample.target.as_os_str(),
+                        sample.patch.as_os_str(),
+                    ],
                 )?;
             } else {
                 let mut patch = Vec::new();
                 let source = fs::read(sample.source.as_path())?;
                 let target = fs::read(sample.target.as_path())?;
-                Bsdiff::new(&source[..], &target[..])
-                    .compare(io::Cursor::new(&mut patch))?;
+                Bsdiff::new(&source[..], &target[..]).compare(io::Cursor::new(&mut patch))?;
                 patch.shrink_to_fit();
                 fs::write(sample.patch.as_path(), &patch[..])?;
                 return Ok(patch);
@@ -233,7 +240,8 @@ impl Benchmarking {
     }
 
     fn should_use_bsdiff(&self, sample: &Sample) -> bool {
-        sample.patch
+        sample
+            .patch
             .parent()
             .and_then(|p| p.file_name())
             .map(|d| d == "samples")
@@ -266,9 +274,9 @@ fn run_bspatch_in<P: AsRef<Path>>(dir: P, s: &[u8], p: &[u8]) -> io::Result<Vec<
 }
 
 fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
-    where
-        P: AsRef<Path>,
-        S: AsRef<OsStr>,
+where
+    P: AsRef<Path>,
+    S: AsRef<OsStr>,
 {
     let bin = get_binary_in(dir, cmd)?;
     let mut proc = process::Command::new(&bin)
@@ -278,20 +286,24 @@ fn run_command_in<P, S>(dir: P, cmd: &str, args: &[S]) -> io::Result<()>
         .spawn()?;
 
     let mut errors = String::new();
-    let mut stderr = proc.stderr.take()
+    let mut stderr = proc
+        .stderr
+        .take()
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to get command stderr"))?;
     stderr.read_to_string(&mut errors)?;
 
     let status = proc.wait()?;
     if !status.success() {
-        let message = format!("command [{} {}], {}, stderr:\n{}",
-                              bin.to_string_lossy(),
-                              args.iter()
-                                  .map(|arg| arg.as_ref().to_string_lossy())
-                                  .collect::<Vec<_>>()
-                                  .join(" "),
-                              status,
-                              errors);
+        let message = format!(
+            "command [{} {}], {}, stderr:\n{}",
+            bin.to_string_lossy(),
+            args.iter()
+                .map(|arg| arg.as_ref().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
+            status,
+            errors
+        );
         return Err(io::Error::new(io::ErrorKind::Other, message));
     } else {
         Ok(())
@@ -346,15 +358,10 @@ fn get_samples_in<P: AsRef<Path>>(dir: P) -> io::Result<Vec<Sample>> {
     if let Some(p) = pat.to_str() {
         walker = glob(p).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     } else {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "cannot convert to str",
-        ));
+        return Err(io::Error::new(io::ErrorKind::Other, "cannot convert to str"));
     }
     for result in walker.into_iter() {
-        let source = result
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?
-            .into_path();
+        let source = result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))?.into_path();
 
         let name;
         let target;
@@ -371,10 +378,7 @@ fn get_samples_in<P: AsRef<Path>>(dir: P) -> io::Result<Vec<Sample>> {
             pbuf.push(".p");
             patch = path::PathBuf::from(d).join(pbuf.as_os_str());
         } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "cannot make target or patch path",
-            ));
+            return Err(io::Error::new(io::ErrorKind::Other, "cannot make target or patch path"));
         }
 
         if let Err(_) = fs::metadata(target.as_path()) {
@@ -417,10 +421,8 @@ fn get_random_caches_in<P: AsRef<Path>>(dir: P, descs: &[RandomSample]) -> io::R
             let target = dir.as_ref().join(format!("{}.{}.t", desc.name, tdesc.name(id)));
             if !exists_file(target.as_path()) {
                 match tdesc {
-                    RandomTarget::Bytes(bytes) =>
-                        fs::write(target.as_path(), bytes)?,
-                    RandomTarget::Distort(rate) =>
-                        fs::write(target.as_path(), &distort(&sdata[..], *rate)[..])?,
+                    RandomTarget::Bytes(bytes) => fs::write(target.as_path(), bytes)?,
+                    RandomTarget::Distort(rate) => fs::write(target.as_path(), &distort(&sdata[..], *rate)[..])?,
                 }
             }
             let patch = dir.as_ref().join(format!("{}.{}.p", desc.name, tdesc.name(id)));
@@ -483,13 +485,13 @@ r incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis no\
 strud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Dui\
 s aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fu\
 giat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in cu\
-lpa qui officia deserunt mollit anim id est laborum."
+lpa qui officia deserunt mollit anim id est laborum.",
             ),
             targets: vec![
                 TBytes(b""),
                 TBytes(
                     b"consectetur adip##cing elit, jed do eiusmod wir mussen wissen. wir werden wis\
-sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. "
+sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. ",
                 ),
                 TBytes(b"the quick brown fox jumps over the lazy dog"),
                 Distort(0.0),
@@ -500,42 +502,22 @@ sen/ laboris nisi ut al&^%ip ex ea coikodo consequat. "
         RandomSample {
             name: "rand-4k",
             source: Random(4096),
-            targets: vec![
-                TBytes(b""),
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
-            ],
+            targets: vec![TBytes(b""), Distort(0.0), Distort(0.5), Distort(1.0)],
         },
         RandomSample {
             name: "rand-256k",
             source: Random(256 * 1024),
-            targets: vec![
-                TBytes(b""),
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
-            ],
+            targets: vec![TBytes(b""), Distort(0.0), Distort(0.5), Distort(1.0)],
         },
         RandomSample {
             name: "rand-1m",
             source: Random(1024 * 1024),
-            targets: vec![
-                TBytes(b""),
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
-            ],
+            targets: vec![TBytes(b""), Distort(0.0), Distort(0.5), Distort(1.0)],
         },
         RandomSample {
             name: "rand-8m",
             source: Random(8 * 1024 * 1024),
-            targets: vec![
-                TBytes(b""),
-                Distort(0.0),
-                Distort(0.5),
-                Distort(1.0),
-            ],
+            targets: vec![TBytes(b""), Distort(0.0), Distort(0.5), Distort(1.0)],
         },
     ]
 }
@@ -549,20 +531,12 @@ pub fn default_random_bench_samples() -> Vec<RandomSample> {
         RandomSample {
             name: "rand-512k",
             source: Random(512 * 1024),
-            targets: vec![
-                Distort(0.05),
-                Distort(0.50),
-                Distort(0.95),
-            ],
+            targets: vec![Distort(0.05), Distort(0.50), Distort(0.95)],
         },
         RandomSample {
             name: "rand-4m",
             source: Random(4 * 1024 * 1024),
-            targets: vec![
-                Distort(0.05),
-                Distort(0.50),
-                Distort(0.95),
-            ],
+            targets: vec![Distort(0.05), Distort(0.50), Distort(0.95)],
         },
     ]
 }

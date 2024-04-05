@@ -254,7 +254,7 @@ impl<'s, 'p, T: Write> Context<'s, 'p, T> {
 
     /// Move the cursor on source.
     fn seek(&mut self, offset: i64) -> Result<()> {
-        self.source.seek(SeekFrom::Current(offset)).map(std::mem::drop)
+        self.source.seek(SeekFrom::Current(offset)).map(drop)
     }
 }
 

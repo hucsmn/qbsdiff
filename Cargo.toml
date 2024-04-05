@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "utils"]
+default-members = [".", "utils"]
+
 [package]
 name = "qbsdiff"
 version = "1.4.1"
@@ -16,11 +20,11 @@ bzip2 = "0.4.4"
 byteorder = "1.4"
 rayon = "1.5"
 suffix_array = "0.5"
-clap = { optional = true, version = "3.2", features = [ "derive" ] }
+clap = { optional = true, version = "3.2", features = ["derive"] }
 
 [dev-dependencies]
-qbsdiff_test_bench_utils = { version ="0.1", path = "utils" }
-criterion = { version = "0.3", features = [ "html_reports" ] }
+qbsdiff_test_bench_utils = { version = "0.1", path = "utils" }
+criterion = { version = "0.3", features = ["html_reports"] }
 
 [features]
 default = []
