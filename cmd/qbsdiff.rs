@@ -67,7 +67,10 @@ fn execute(args: BsdiffArgs) -> io::Result<()> {
 
     // setup input/output
     if args.source_path == "-" && args.target_path == "-" {
-        return Err(io::Error::new(io::ErrorKind::Other, "source and target are both from stdin"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "source and target are both from stdin",
+        ));
     }
     let source = input_bytes(&args.source_path)?;
     let target = input_bytes(&args.target_path)?;

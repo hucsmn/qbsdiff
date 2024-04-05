@@ -35,7 +35,7 @@ const MIN_CHUNK: usize = 256 * 1024;
 const DEFAULT_CHUNK: usize = 512 * 1024;
 
 /// Magic number bytes of bsdiff 4.x patch files.
-const BSDIFF4_MAGIC: &'static [u8] = b"BSDIFF40";
+const BSDIFF4_MAGIC: &[u8] = b"BSDIFF40";
 
 /// Parallel searching scheme of bsdiff.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -369,8 +369,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
 
     /// Compute all the bsdiff controls in parallel.
     pub fn compute(mut self) -> Vec<Control> {
-        self
-            .jobs
+        self.jobs
             .par_iter_mut()
             .map(|diff| {
                 // Search current chunk.

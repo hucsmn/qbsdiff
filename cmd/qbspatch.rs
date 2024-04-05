@@ -43,7 +43,10 @@ fn main() {
 fn execute(args: BspatchArgs) -> io::Result<()> {
     // setup input/output
     if args.source_path == "-" && args.patch_path == "-" {
-        return Err(io::Error::new(io::ErrorKind::Other, "source and patch are both from stdin"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "source and patch are both from stdin",
+        ));
     }
     let source = input_bytes(&args.source_path)?;
     let target = output_writer(&args.target_path)?;
