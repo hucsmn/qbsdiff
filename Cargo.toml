@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "utils"]
+default-members = [".", "utils"]
+
 [package]
 name = "qbsdiff"
 version = "1.4.1"

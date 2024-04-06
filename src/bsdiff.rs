@@ -35,7 +35,7 @@ const MIN_CHUNK: usize = 256 * 1024;
 const DEFAULT_CHUNK: usize = 512 * 1024;
 
 /// Magic number bytes of bsdiff 4.x patch files.
-const BSDIFF4_MAGIC: &'static [u8] = b"BSDIFF40";
+const BSDIFF4_MAGIC: &[u8] = b"BSDIFF40";
 
 /// Parallel searching scheme of bsdiff.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -177,8 +177,6 @@ impl<'s, 't> Bsdiff<'s, 't> {
     /// The fastest/default compression level is usually good enough.
     /// In contrast, patch files produced with the best level appeared slightly
     /// bigger in many test cases.
-    ///
-    /// [struct]: bzip2::Compression
     pub fn compression_level(mut self, compression_level: u32) -> Self {
         self.compression_level = Compression::new(u32::min(u32::max(compression_level, 0), 9));
         self
@@ -369,8 +367,7 @@ impl<'s, 't> ParSaDiff<'s, 't> {
 
     /// Compute all the bsdiff controls in parallel.
     pub fn compute(mut self) -> Vec<Control> {
-        self
-            .jobs
+        self.jobs
             .par_iter_mut()
             .map(|diff| {
                 // Search current chunk.
