@@ -1,8 +1,8 @@
 qbsdiff
 =======
 
-[![crates](https://img.shields.io/badge/crates-1.4.1-blue)](https://crates.io/crates/qbsdiff)
-[![docs](https://img.shields.io/badge/docs-1.4.1-blue)](https://docs.rs/qbsdiff)
+[![crates](https://img.shields.io/badge/crates-1.4.2-blue)](https://crates.io/crates/qbsdiff)
+[![docs](https://img.shields.io/badge/docs-1.4.2-blue)](https://docs.rs/qbsdiff)
 [![dependency status](https://deps.rs/repo/github/hucsmn/qbsdiff/status.svg)](https://deps.rs/repo/github/hucsmn/qbsdiff)
 
 
