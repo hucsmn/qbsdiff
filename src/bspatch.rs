@@ -99,6 +99,12 @@ impl<'p> Bspatch<'p> {
 
     /// Apply patch to the source data and output the stream of target.
     ///
+    /// Parameter `source` is designed to be a low-level `&[u8]` binary, rather than a `Seek + Read` random accessing data.
+    /// See [#8](https://github.com/hucsmn/qbsdiff/pull/8), allowing random accessible source file might be misleading,
+    /// which could result in unwanted performance loss due to heavy syscall overheads of `seek` + `read` (by the way, `pread`/`read_at` is not cross-platform).
+    ///
+    /// For those who in search of loading the source file lazily, simply [memmap](https://crates.io/crates/memmap2) source file to memory is recommended.
+    ///
     /// The target data size would be returned if no error occurs.
     pub fn apply<T: Write>(self, source: &[u8], target: T) -> Result<u64> {
         let delta_min = Ord::min(self.delta_min, self.buffer_size);
