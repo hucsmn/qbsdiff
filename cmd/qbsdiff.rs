@@ -1,8 +1,6 @@
 #![forbid(unsafe_code)]
-use std::fs;
-use std::io;
 use std::io::prelude::*;
-use std::process;
+use std::{fs, io, process};
 
 use clap::{ArgAction, Parser};
 use qbsdiff::{Bsdiff, ParallelScheme};

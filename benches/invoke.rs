@@ -1,7 +1,6 @@
 /*! Benchmarking diff/patch via invoking this `qbsdiff` crate. */
 
-use std::path;
-use std::time;
+use std::{path, time};
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use qbsdiff_test_bench_utils::*;

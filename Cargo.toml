@@ -17,7 +17,7 @@ description = "Fast and memory saving bsdiff 4.x compatible delta compressor and
 
 [dependencies]
 byteorder = "1.5"
-bzip2 = "0.4.4"
+bzip2 = "0.5.2"
 clap = { optional = true, version = "4.5", features = ["derive"] }
 rayon = "1.10"
 suffix_array = "0.5"
