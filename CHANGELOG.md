@@ -1,8 +1,15 @@
 CHANGE LOG
 ==========
 
-v.1.4.2
--------
+v1.4.3
+------
+
+### Updated
+
+* update dependency versions [#10](https://github.com/hucsmn/qbsdiff/pull/12), [0c3bd2db](./commit/0c3bd2db)
+
+v1.4.2
+------
 
 ### Changed
 

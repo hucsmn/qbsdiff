@@ -4,7 +4,7 @@ default-members = [".", "utils"]
 
 [package]
 name = "qbsdiff"
-version = "1.4.2"
+version = "1.4.3"
 authors = ["hucsmn <hucsmn@hotmail.com>"]
 edition = "2021"
 license = "MIT"
