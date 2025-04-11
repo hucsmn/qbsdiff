@@ -1,18 +1,15 @@
 use std::ffi::OsStr;
-use std::fs;
-use std::io;
 use std::io::Read;
-use std::path;
 use std::path::Path;
-use std::process;
+use std::{fs, io, path, process};
 
 use chrono::Utc;
 use globwalk::glob;
-use rand::distributions::uniform::{SampleUniform, Uniform};
-use rand::prelude::*;
-use rand::random;
-
 use qbsdiff::{Bsdiff, Bspatch, ParallelScheme};
+use rand::distr::uniform::SampleUniform;
+use rand::distr::Uniform;
+use rand::prelude::*;
+use rand::{random, rng};
 
 /// Options for qbsdiff.
 #[derive(Copy, Clone, Debug)]
@@ -542,10 +539,10 @@ pub fn default_random_bench_samples() -> Vec<RandomSample> {
 }
 
 fn random_bytes(n: usize) -> Vec<u8> {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut bytes = Vec::with_capacity(n);
     for _ in 0..n {
-        bytes.push(rng.gen())
+        bytes.push(rng.random())
     }
     bytes
 }
@@ -565,7 +562,7 @@ fn distort(source: &[u8], similar: f64) -> Vec<u8> {
     let emax = random_between(0, (source.len() as f64 * 0.15 * (1.0 - similar)) as usize);
 
     let mut target = Vec::with_capacity(tsize);
-    let mut rng = thread_rng();
+    let mut rng = rng();
     while target.len() < tsize {
         // delta
         let remain = tsize - target.len();
@@ -579,7 +576,7 @@ fn distort(source: &[u8], similar: f64) -> Vec<u8> {
             if random_decide(rate) {
                 target.push(x);
             } else {
-                target.push(rng.gen());
+                target.push(rng.random());
             }
         }
 
@@ -588,7 +585,7 @@ fn distort(source: &[u8], similar: f64) -> Vec<u8> {
         if !random_decide(rate) {
             let esize = random_between(0, Ord::min(emax, remain));
             for _ in 0..esize {
-                target.push(rng.gen());
+                target.push(rng.random());
             }
         }
     }
@@ -601,8 +598,8 @@ fn random_decide(rate: f64) -> bool {
 }
 
 fn random_between<X: SampleUniform>(lo: X, hi: X) -> X {
-    let mut rng = thread_rng();
-    Uniform::new_inclusive(lo, hi).sample(&mut rng)
+    let mut rng = rng();
+    Uniform::new_inclusive(lo, hi).unwrap().sample(&mut rng)
 }
 
 fn fraction(x: f64) -> f64 {

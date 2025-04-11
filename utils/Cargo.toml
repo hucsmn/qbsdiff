@@ -11,4 +11,4 @@ description = "private utilities of the qbsdiff crate for tests and benchmarks"
 chrono = "0.4"
 globwalk = "0.9"
 qbsdiff = { version = "1", path = ".." }
-rand = "0.8"
+rand = "0.9"
