@@ -122,7 +122,7 @@ struct PatchFile<'a> {
 }
 
 /// Parse the bsdiff 4.x patch file.
-fn parse(patch: &[u8]) -> Result<PatchFile> {
+fn parse(patch: &[u8]) -> Result<PatchFile<'_>> {
     if patch.len() < 32 || &patch[..8] != b"BSDIFF40" {
         return Err(Error::new(ErrorKind::InvalidData, "not a valid patch"));
     }
