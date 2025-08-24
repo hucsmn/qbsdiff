@@ -8,7 +8,7 @@ use qbsdiff::Bspatch;
 #[derive(Parser, Debug)]
 #[clap(
 name = "qbspatch",
-version = "1.4.3",
+version = "1.4.4",
 about = "fast and memory saving bsdiff 4.x compatible patcher",
 long_about = None,
 )]
