@@ -16,7 +16,6 @@ exclude = ["/assets"]
 description = "Fast and memory saving bsdiff 4.x compatible delta compressor and patcher."
 
 [dependencies]
-byteorder = "1.5"
 bzip2 = "0.6.0"
 clap = { optional = true, version = "4.5", features = ["derive"] }
 rayon = "1.10"
