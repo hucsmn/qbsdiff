@@ -1,7 +1,5 @@
 #![forbid(unsafe_code)]
 
-use byteorder::{ByteOrder, LE};
-
 /// Single bsdiff control instruction.
 #[derive(Debug)]
 pub struct Control {
@@ -13,7 +11,7 @@ pub struct Control {
 /// Decodes integer.
 #[inline]
 pub fn decode_int(b: &[u8]) -> i64 {
-    let x = LE::read_u64(b);
+    let x = u64::from_le_bytes(b[..8].try_into().unwrap());
     if x >> 63 == 0 || x == 1 << 63 {
         x as i64
     } else {
@@ -24,9 +22,12 @@ pub fn decode_int(b: &[u8]) -> i64 {
 /// Encodes integer.
 #[inline]
 pub fn encode_int(x: i64, b: &mut [u8]) {
-    if x < 0 {
-        LE::write_u64(b, x.wrapping_neg() as u64 | (1 << 63));
+    let n = if x < 0 {
+        x.wrapping_neg() as u64 | (1 << 63)
     } else {
-        LE::write_u64(b, x as u64);
-    }
+        x as u64
+    };
+
+    let buf = n.to_le_bytes();
+    b[..8].copy_from_slice(&buf);
 }
