@@ -23,7 +23,7 @@ rayon = "1.10"
 suffix_array = "0.5"
 
 [dev-dependencies]
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 qbsdiff_test_bench_utils = { version = "0.1", path = "utils" }
 
 [features]
